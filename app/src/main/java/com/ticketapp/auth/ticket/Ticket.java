@@ -15,11 +15,16 @@ import java.security.GeneralSecurityException;
  */
 public class Ticket {
 
-    /** Default keys are stored in res/values/secrets.xml **/
+    /**
+     * Default keys are stored in res/values/secrets.xml
+     **/
     private static final byte[] defaultAuthenticationKey = TicketActivity.outer.getString(R.string.default_auth_key).getBytes();
     private static final byte[] defaultHMACKey = TicketActivity.outer.getString(R.string.default_hmac_key).getBytes();
+    private static final String applicationTag = "6666";
 
-    /** TODO: Change these according to your design. Diversify the keys. */
+    /**
+     * TODO: Change these according to your design. Diversify the keys.
+     */
     private static final byte[] authenticationKey = defaultAuthenticationKey; // 16-byte key
     private static final byte[] hmacKey = defaultHMACKey; // 16-byte key
 
@@ -35,7 +40,9 @@ public class Ticket {
 
     private static String infoToShow = "-"; // Use this to show messages
 
-    /** Create a new ticket */
+    /**
+     * Create a new ticket
+     */
     public Ticket() throws GeneralSecurityException {
         // Set HMAC key for the ticket
         macAlgorithm = new TicketMac();
@@ -45,59 +52,94 @@ public class Ticket {
         utils = new Utilities(ul);
     }
 
-    /** After validation, get ticket status: was it valid or not? */
+    /**
+     * After validation, get ticket status: was it valid or not?
+     */
     public boolean isValid() {
         return isValid;
     }
 
-    /** After validation, get the number of remaining uses */
+    /**
+     * After validation, get the number of remaining uses
+     */
     public int getRemainingUses() {
         return remainingUses;
     }
 
-    /** After validation, get the expiry time */
+    /**
+     * After validation, get the expiry time
+     */
     public int getExpiryTime() {
         return expiryTime;
     }
 
-    /** After validation/issuing, get information */
+    /**
+     * After validation/issuing, get information
+     */
     public static String getInfoToShow() {
         return infoToShow;
     }
 
     /**
      * Issue new tickets
-     *
+     * <p>
      * TODO: IMPLEMENT
      */
     public boolean issue(int daysValid, int uses) throws GeneralSecurityException {
-        boolean res;
 
-        // Authenticate
-        res = utils.authenticate(authenticationKey);
-        if (!res) {
-            Utilities.log("Authentication failed in issue()", true);
-            infoToShow = "Authentication failed";
-            return false;
-        }
+        // Check the application tag
+        byte[] cardApplicationTag = new byte[4];
+        boolean checkApplicationTag = utils.readPages(3, 1, cardApplicationTag, 0);
 
-        // Example of writing:
-        byte[] message = "info".getBytes();
-        res = utils.writePages(message, 0, 6, 1);
 
         // Set information to show for the user
-        if (res) {
-            infoToShow = "Wrote: " + new String(message);
+        if (checkApplicationTag && applicationTag.equals(new String(cardApplicationTag))) {
+            infoToShow = "Ticket already issued!";
+            return false;
+
         } else {
-            infoToShow = "Failed to write";
+            // erase card content
+            boolean cardErased = utils.eraseMemory();
+            if (!cardErased) {
+                infoToShow = "Cannot erase card!";
+                return false;
+            }
+            boolean tagWritten = utils.writePages(applicationTag.getBytes(), 0, 3, 1);
+            if (tagWritten) {
+                infoToShow = "Tag is written!";
+                return false;
+            }
+
+            // Authenticate
+//            boolean res;
+//            res = utils.authenticate(authenticationKey);
+//            if (!res) {
+//                System.out.println("not auth");
+//                Utilities.log("Authentication failed in issue()", true);
+//                infoToShow = "Authentication failed";
+//                return false;
+//            }
         }
 
+
+//
+//        // Example of writing:
+//        byte[] message = "info".getBytes();
+//        res = utils.writePages(message, 0, 6, 1);
+//
+//        // Set information to show for the user
+//        if (res) {
+//            infoToShow = "Wrote: " + new String(message);
+//        } else {
+//            infoToShow = "Failed to write";
+//        }
+//
         return true;
     }
 
     /**
      * Use ticket once
-     *
+     * <p>
      * TODO: IMPLEMENT
      */
     public boolean use() throws GeneralSecurityException {
