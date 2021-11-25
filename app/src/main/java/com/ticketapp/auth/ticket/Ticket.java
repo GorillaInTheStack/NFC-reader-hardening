@@ -165,11 +165,28 @@ public class Ticket {
     public boolean use() throws GeneralSecurityException {
         boolean res;
 
+        //Check tag, if not there return immediately.
+        byte[] cardApplicationTag = new byte[4];
+        boolean readSuccessful = utils.readPages(4, 1, cardApplicationTag, 0);
+        if (!readSuccessful || !applicationTag.equals(new String(cardApplicationTag))) {
+            infoToShow = "Ticket was not issued correctly!";
+            System.err.println("ERROR: problems while reading tag in method use().");
+            return false;
+
+        }
+        System.out.println("INFO: tag read Successful in method use()");
+
         //Generate diversified authentication key from authenticationKey(master) and readable memory.
 
         //Get the UID
         byte[] cardUID = new byte[8];
         boolean checkCardUID = utils.readPages(0, 2, cardUID, 0);
+        if(!checkCardUID){
+            infoToShow = "Could not identify the card!";
+            System.err.println("ERROR: problems while reading card UID in method use().");
+            return false;
+        }
+        System.out.println("INFO: UID read Successful in method use()");
 
         //TODO: Create diversified key.
 
@@ -177,15 +194,17 @@ public class Ticket {
         res = utils.authenticate(authenticationKey);
         if (!res) {
             Utilities.log("Authentication failed in issue()", true);
-            infoToShow = "Authentication failed";
+            infoToShow = "Authentication failed!";
+            System.err.println("ERROR: problems while authenticating card in method use().");
             return false;
         }
-
-        System.out.println("Authentication Successful");
+        System.out.println("INFO: Authentication Successful in method use()");
 
         //TODO: handle the ride counter.
 
         //TODO: recalculate hash if necessary.
+
+        //TODO: handle related pages in the comment in issue() method.
 
         /*
          Example of reading:
