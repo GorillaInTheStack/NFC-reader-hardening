@@ -6,6 +6,7 @@ import com.ticketapp.auth.app.ulctools.Commands;
 import com.ticketapp.auth.app.ulctools.Utilities;
 
 import java.security.GeneralSecurityException;
+import java.util.Date;
 
 /**
  * TODO:
@@ -34,9 +35,10 @@ public class Ticket {
     private static Utilities utils;
     private static Commands ul;
 
-    private final Boolean isValid = false;
-    private final int remainingUses = 0;
-    private final int expiryTime = 0;
+    private final Boolean isValid = true; //should be changed accordingly. Used elsewhere.
+    private final int remainingUses = 5; //default.
+    private final int expiryTime =
+            (int) ((new Date()).getTime() / 1000 / 60) + 1440; //default, 24h in minutes.
 
     private static String infoToShow = "-"; // Use this to show messages
 
