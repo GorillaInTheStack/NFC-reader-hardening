@@ -165,7 +165,27 @@ public class Ticket {
     public boolean use() throws GeneralSecurityException {
         boolean res;
 
+        //Generate diversified authentication key from authenticationKey(master) and readable memory.
 
+        //Get the UID
+        byte[] cardUID = new byte[8];
+        boolean checkCardUID = utils.readPages(0, 2, cardUID, 0);
+
+        //TODO: Create diversified key.
+
+        // Authenticate
+        res = utils.authenticate(authenticationKey);
+        if (!res) {
+            Utilities.log("Authentication failed in issue()", true);
+            infoToShow = "Authentication failed";
+            return false;
+        }
+
+        System.out.println("Authentication Successful");
+
+        //TODO: handle the ride counter.
+
+        //TODO: recalculate hash if necessary.
 
         /*
          Example of reading:
