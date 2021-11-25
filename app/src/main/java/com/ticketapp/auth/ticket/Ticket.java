@@ -86,10 +86,30 @@ public class Ticket {
      * TODO: IMPLEMENT
      */
     public boolean issue(int daysValid, int uses) throws GeneralSecurityException {
+        /*
+          How the card memory is expected to be after issuing the card:
+
+          Page 0: UID.
+          Page 1: UID.
+          Page 2: Lock bits.
+          Page 3: non-reset-able OTP.
+
+          .... First Application Page ....
+          Page 4: program tag => applicationTag.
+
+          Page 39:
+          .... Last Application Page ....
+
+          Page 41: 16-bit counter.
+          Page 42: Auth params.
+          Page 43: Auth params.
+          Page 44-47: Auth key (non-readable)
+
+         */
 
         // Check the application tag
         byte[] cardApplicationTag = new byte[4];
-        boolean checkApplicationTag = utils.readPages(3, 1, cardApplicationTag, 0);
+        boolean checkApplicationTag = utils.readPages(4, 1, cardApplicationTag, 0);
 
 
         // Set information to show for the user
@@ -104,7 +124,7 @@ public class Ticket {
                 infoToShow = "Cannot erase card!";
                 return false;
             }
-            boolean tagWritten = utils.writePages(applicationTag.getBytes(), 0, 3, 1);
+            boolean tagWritten = utils.writePages(applicationTag.getBytes(), 0, 4, 1);
             if (tagWritten) {
                 infoToShow = "Tag is written!";
                 return false;
@@ -145,24 +165,20 @@ public class Ticket {
     public boolean use() throws GeneralSecurityException {
         boolean res;
 
-        // Authenticate
-        res = utils.authenticate(authenticationKey);
-        if (!res) {
-            Utilities.log("Authentication failed in issue()", true);
-            infoToShow = "Authentication failed";
-            return false;
-        }
 
-        // Example of reading:
-        byte[] message = new byte[4];
-        res = utils.readPages(6, 1, message, 0);
 
-        // Set information to show for the user
-        if (res) {
-            infoToShow = "Read: " + new String(message);
-        } else {
-            infoToShow = "Failed to read";
-        }
+        /*
+         Example of reading:
+         byte[] message = new byte[4];
+         res = utils.readPages(6, 1, message, 0);
+
+         // Set information to show for the user
+         if (res) {
+             infoToShow = "Read: " + new String(message);
+         } else {
+             infoToShow = "Failed to read";
+         }
+        */
 
         return true;
     }
