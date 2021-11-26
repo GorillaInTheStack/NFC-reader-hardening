@@ -109,10 +109,13 @@ public class Ticket {
           .... First Application Page ....
           Page 4: program tag => applicationTag.
           Page 5-6: empty in case we want to add our own ID.
-          Page 7: max number of uses => int uses.
+          Page 7: max number of uses => int maxUsages.
           Page 8: number of days the ticket is valid from issue date => int daysValid.
           Page 9-13: issue date
           Page 14-18: HMAC
+          Page 19: empty
+          Page 20: Temporarily used as the counter for usedRides.
+          Page 21: counter initial value.
 
           Page 39:
           .... Last Application Page ....
