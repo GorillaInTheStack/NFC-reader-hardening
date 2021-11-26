@@ -45,10 +45,10 @@ public class Ticket {
     private static Utilities utils;
     private static Commands ul;
 
-    private final Boolean isValid = true; //should be changed accordingly. Used elsewhere.
-    private final int remainingUses = 10; //default.
-    private int expiryTime =
-            (int) ((new Date()).getTime() / 1000 / 60) + 1440; //default, 24h in minutes.
+    private Boolean isValid = true; //should be changed accordingly. Used elsewhere.
+    private int remainingUses = 10; //default.
+    private int expiryTime;
+            //(int) ((new Date()).getTime() / 1000 / 60) + 1440; //default, 24h in minutes.
 
     private static String infoToShow = "-"; // Use this to show messages
 
@@ -174,6 +174,17 @@ public class Ticket {
             }
             Utilities.log("INFO: Authentication successful in method issue()!", false);
 
+            // Before erasing content, keep current value of counter.
+            byte[] rawCurrentValueCounter = new byte[4];
+            boolean checkCurrentValueCounter = utils.readPages(20, 1, rawCurrentValueCounter, 0);
+            if(!checkCurrentValueCounter){
+                infoToShow = "There was a problem reading the counter of the card!";
+                Utilities.log("ERROR: problems while reading current counter in issue().", true);
+                return false;
+            }
+            int currentCounter = byteArrayToInt(rawCurrentValueCounter);
+            Utilities.log("INFO: read current counter value successfully Counter: "+currentCounter, false);
+
             // erase card content
             boolean cardErased = utils.eraseMemory();
             if (!cardErased) {
@@ -182,6 +193,29 @@ public class Ticket {
                 return false;
             }
             Utilities.log("INFO: Card erased successfully in method issue()!", false);
+
+            // Putting current counter value as initial counter in page 21.
+            boolean putInitialCounterValue = utils.writePages(rawCurrentValueCounter, 0, 21, 1);
+            if (!putInitialCounterValue) {
+                infoToShow = "Unable to write initial counter value!";
+                Utilities.log("ERROR: problems while writing initial counter value in issue().", true);
+                return false;
+            }
+            Utilities.log("INFO: initial counter value was put successfully in issue()! Counter: "+currentCounter, false);
+
+            // TODO: THIS NEXT PIECE OF CODE IS NEEDED ONLY BECAUSE WE'RE NOT USING THE COUNTER
+            // TODO: DO NOT FORGET TO DELETE THIS BEFORE SWITCHING TO THE REAL COUNTER!!!!!
+
+            // Putting fake counter value back in page 20 to simulate the counter being persistent.
+            boolean putFakeCounterValue = utils.writePages(rawCurrentValueCounter, 0, 20, 1);
+            if (!putFakeCounterValue) {
+                infoToShow = "Unable to write fake counter value!";
+                Utilities.log("ERROR: problems while writing fake counter value in issue().", true);
+                return false;
+            }
+            Utilities.log("INFO: fake counter value was put back into place after clearing memory Counter: "+currentCounter, false);
+
+            // TODO: END OF CODE TO BE DELETED.
 
             // write number of uses
             boolean usesWritten = utils.writePages(intToByteArray(uses), 0, 7, 1);
@@ -401,7 +435,7 @@ public class Ticket {
         // Calculate expiry date from issue date and daysValid
         Date expiryDate = new Date(issueDate.getTime() + (daysValid * 86400000L));
         Utilities.log("INFO: Calculated expiry date from issue date and daysValid expiryDate: "+expiryDate, false);
-        this.expiryTime = (int) expiryDate.getTime();
+        expiryTime = (int) expiryDate.getTime();
 
 //        // Check if card expired
 //        if(!expiryDate.after(issueDate)){
@@ -451,7 +485,7 @@ public class Ticket {
 
         // We will use page 20 as temporary counter.
         byte[] rawInitialCounterValue = new byte[4];
-        boolean checkInitialCounterValue = utils.readPages(20, 1, rawInitialCounterValue, 0);
+        boolean checkInitialCounterValue = utils.readPages(21, 1, rawInitialCounterValue, 0);
         if (!checkInitialCounterValue) {
             infoToShow = "Unable to get InitialCounterValue in use()!";
             Utilities.log("ERROR: problems while reading InitialCounterValue in use().", true);
@@ -459,19 +493,22 @@ public class Ticket {
         }
         int InitialCounterValue = byteArrayToInt(rawInitialCounterValue);
         Utilities.log("INFO: InitialCounterValue read successfully in use() InitialCounterValue: "+InitialCounterValue, false);
-        // Check if card still valid before incrementing usedRides.
 
+        // Check if card still valid before incrementing usedRides.
+        remainingUses = usedRides - InitialCounterValue;
         if(!(usedRides - InitialCounterValue < maxUsages) || !expiryDate.after(issueDate)){
             // Card expired.
+            isValid = false;
+
             infoToShow = "Your card has expired in use()!";
             Utilities.log("INFO: Card has expired. Check if the values above make sense. Resetting...", false);
 
             // Erase Tag
-//            boolean eraseTag = utils.writePages("0".getBytes(), 0, 4, 1);
-//            if(!eraseTag){
-//                Utilities.log("ERROR: Was not able to reset tag", true);
-//                return false;
-//            }
+            boolean eraseTag = utils.writePages(intToByteArray(0), 0, 4, 1);
+            if(!eraseTag){
+                Utilities.log("ERROR: Was not able to reset tag", true);
+                return false;
+            }
 
             // TODO: Reset auth params?
 
