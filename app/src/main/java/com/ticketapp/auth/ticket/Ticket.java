@@ -47,7 +47,7 @@ public class Ticket {
 
     private final Boolean isValid = true; //should be changed accordingly. Used elsewhere.
     private final int remainingUses = 10; //default.
-    private final int expiryTime =
+    private int expiryTime =
             (int) ((new Date()).getTime() / 1000 / 60) + 1440; //default, 24h in minutes.
 
     private static String infoToShow = "-"; // Use this to show messages
@@ -276,6 +276,9 @@ public class Ticket {
           Page 8: number of days the ticket is valid from issue date => int daysValid.
           Page 9-13: issue date
           Page 14-18: HMAC
+          Page 19: empty
+          Page 20: Temporarily used as the counter for usedRides.
+          Page 21: counter initial value.
 
           Page 39:
           .... Last Application Page ....
@@ -396,7 +399,15 @@ public class Ticket {
         }
 
         // Calculate expiry date from issue date and daysValid
+        Date expiryDate = new Date(issueDate.getTime() + (daysValid * 86400000L));
+        Utilities.log("INFO: Calculated expiry date from issue date and daysValid expiryDate: "+expiryDate, false);
+        this.expiryTime = (int) expiryDate.getTime();
 
+//        // Check if card expired
+//        if(!expiryDate.after(issueDate)){
+//            // Card expired
+//
+//        }
 
         // Get mac from pages 14-18.
         byte[] rawMac = new byte[20];
@@ -426,13 +437,59 @@ public class Ticket {
         Utilities.log("INFO: HMAC found in card: " + cardMac, false);
         Utilities.log("INFO: HMAC generated in use(): " + macGenerated, false);
 
+        // Get the number of rides taken ( TODO: Change to counter later. )
+        // We will use page 20 as temporary counter.
+        byte[] rawUsedRides = new byte[4];
+        boolean checkUsedRides = utils.readPages(20, 1, rawUsedRides, 0);
+        if (!checkUsedRides) {
+            infoToShow = "Unable to get usedRides in use()!";
+            Utilities.log("ERROR: problems while reading usedRides in use().", true);
+            return false;
+        }
+        int usedRides = byteArrayToInt(rawUsedRides);
+        Utilities.log("INFO: usedRides read successfully in use() usedRides: "+usedRides, false);
 
-        // Critical
-        // TODO: recalculate hash if necessary.
+        // We will use page 20 as temporary counter.
+        byte[] rawInitialCounterValue = new byte[4];
+        boolean checkInitialCounterValue = utils.readPages(20, 1, rawInitialCounterValue, 0);
+        if (!checkInitialCounterValue) {
+            infoToShow = "Unable to get InitialCounterValue in use()!";
+            Utilities.log("ERROR: problems while reading InitialCounterValue in use().", true);
+            return false;
+        }
+        int InitialCounterValue = byteArrayToInt(rawInitialCounterValue);
+        Utilities.log("INFO: InitialCounterValue read successfully in use() InitialCounterValue: "+InitialCounterValue, false);
+        // Check if card still valid before incrementing usedRides.
 
-        // TODO: handle related pages in the comment in issue() method.
+        if(!(usedRides - InitialCounterValue < maxUsages) || !expiryDate.after(issueDate)){
+            // Card expired.
+            infoToShow = "Your card has expired in use()!";
+            Utilities.log("INFO: Card has expired. Check if the values above make sense. Resetting...", false);
 
-        // TODO: clear tag and reset AUTH bits and key? when ticket is no longer valid.
+            // Erase Tag
+//            boolean eraseTag = utils.writePages("0".getBytes(), 0, 4, 1);
+//            if(!eraseTag){
+//                Utilities.log("ERROR: Was not able to reset tag", true);
+//                return false;
+//            }
+
+            // TODO: Reset auth params?
+
+            Utilities.log("INFO: Card has been reset.", false);
+        }else{
+            // Card is still valid, increment counter.
+            usedRides += 1;
+
+            // Write new usedRides to counter.
+            boolean checkNewUsedRides = utils.writePages(intToByteArray(usedRides), 0, 20, 1);
+            if(!checkNewUsedRides){
+                infoToShow = "Unable increment usedRides in use()!";
+                Utilities.log("ERROR: Was not able to update usedRides in use().", true);
+                return false;
+            }
+
+            Utilities.log("INFO: Validation of card was successful!", false);
+        }
 
         /*
          Example of reading:
