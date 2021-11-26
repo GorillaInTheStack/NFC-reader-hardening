@@ -46,7 +46,7 @@ public class Ticket {
     private static Commands ul;
 
     private final Boolean isValid = true; //should be changed accordingly. Used elsewhere.
-    private final int remainingUses = 5; //default.
+    private final int remainingUses = 10; //default.
     private final int expiryTime =
             (int) ((new Date()).getTime() / 1000 / 60) + 1440; //default, 24h in minutes.
 
@@ -109,7 +109,7 @@ public class Ticket {
           .... First Application Page ....
           Page 4: program tag => applicationTag.
           Page 5-6: empty in case we want to add our own ID.
-          Page 7: number of uses => int uses.
+          Page 7: max number of uses => int uses.
           Page 8: number of days the ticket is valid from issue date => int daysValid.
           Page 9-13: issue date
           Page 14-18: HMAC
@@ -147,7 +147,7 @@ public class Ticket {
             // The UID is a 7 byte serial number located in first 3 bytes of page 0 and all of page 1
             System.arraycopy(Arrays.copyOfRange(cardUIDFull, 0, 3), 0, cardUID, 0, 3);
             System.arraycopy(Arrays.copyOfRange(cardUIDFull, 4, 8), 0, cardUID, 3, 4);
-            Utilities.log("INFO: Card UID " + convertByteArrayToHex(cardUID), false);
+            Utilities.log("INFO: Card UID in issue()" + convertByteArrayToHex(cardUID), false);
 
             String diversifiedAuthKey = createDiversifiedKey(new String(authenticationKey), convertByteArrayToHex(cardUID));
             String diversifiedMacKey = createDiversifiedKey(new String(hmacKey), convertByteArrayToHex(cardUID));
@@ -210,7 +210,7 @@ public class Ticket {
                 Utilities.log("ERROR: problems while writing HMAC in issue().", true);
                 return false;
             }
-            Utilities.log("INFO: HMAC written successfully in method issue()!", false);
+            Utilities.log("INFO: HMAC written successfully in method issue()! HMAC: "+ convertByteArrayToHex(mac), false);
 
             boolean writeAuthKey = utils.writePages(diversifiedAuthKey.getBytes(), 0, 44, 4);
             if (!writeAuthKey) {
@@ -261,50 +261,178 @@ public class Ticket {
      * TODO: IMPLEMENT
      */
     public boolean use() throws GeneralSecurityException {
+        /*
+          How the card memory is expected to be after issuing the card:
+
+          Page 0: UID.
+          Page 1: UID.
+          Page 2: first byte contains UID check byte, last 2 bytes are Lock bits.
+          Page 3: non-reset-able OTP.
+
+          .... First Application Page ....
+          Page 4: program tag => applicationTag.
+          Page 5-6: empty in case we want to add our own ID.
+          Page 7: max number of uses => int maxUsages.
+          Page 8: number of days the ticket is valid from issue date => int daysValid.
+          Page 9-13: issue date
+          Page 14-18: HMAC
+
+          Page 39:
+          .... Last Application Page ....
+
+          Page 41: 16-bit counter.
+          Page 42: Auth0 in byte 0.
+          Page 43: Auth1 in byte 0.
+          Page 44-47: Auth key (non-readable)
+
+         */
+
         boolean res;
 
-        //Check tag, if not there return immediately.
+        // Check tag, if not there, return immediately.
         byte[] cardApplicationTag = new byte[4];
         boolean readSuccessful = utils.readPages(4, 1, cardApplicationTag, 0);
         if (!readSuccessful || !applicationTag.equals(new String(cardApplicationTag))) {
             infoToShow = "Ticket was not issued correctly!";
-            System.err.println("ERROR: problems while reading tag in method use().");
+            Utilities.log("ERROR: problems while reading tag in method use().", true);
             return false;
 
         }
-        System.out.println("INFO: tag read Successful in method use()");
+        Utilities.log("INFO: tag read Successful in method use()", false);
 
-        //Generate diversified authentication key from authenticationKey(master) and readable memory.
-
-        //Get the UID
-        byte[] cardUID = new byte[8];
-        boolean checkCardUID = utils.readPages(0, 2, cardUID, 0);
+        // Get the UID
+        byte[] cardUIDFull = new byte[8];
+        boolean checkCardUID = utils.readPages(0, 2, cardUIDFull, 0);
         if (!checkCardUID) {
-            infoToShow = "Could not identify the card!";
-            System.err.println("ERROR: problems while reading card UID in method use().");
+            infoToShow = "Unable to read UID!";
+            Utilities.log("ERROR: problems while reading UID in use().", true);
             return false;
         }
-        System.out.println("INFO: UID read Successful in method use()");
+        byte[] cardUID = new byte[7];
+        // The UID is a 7 byte serial number located in first 3 bytes of page 0 and all of page 1
+        System.arraycopy(Arrays.copyOfRange(cardUIDFull, 0, 3), 0, cardUID, 0, 3);
+        System.arraycopy(Arrays.copyOfRange(cardUIDFull, 4, 8), 0, cardUID, 3, 4);
+        Utilities.log("INFO: read Card UID in use() UID: " + convertByteArrayToHex(cardUID), false);
 
-        //TODO: Create diversified key.
+        // Create diversified keys.
+        String diversifiedAuthKey = createDiversifiedKey(new String(authenticationKey), convertByteArrayToHex(cardUID));
+        String diversifiedMacKey = createDiversifiedKey(new String(hmacKey), convertByteArrayToHex(cardUID));
+
+        if (diversifiedAuthKey == null || diversifiedMacKey == null) {
+            infoToShow = "Error generating keys!";
+            Utilities.log("ERROR: problems while generating keys in use().", true);
+            return false;
+        }
+        Utilities.log("INFO: Keys generated successfully in method use()!", false);
 
         // Authenticate
-        res = utils.authenticate(authenticationKey);
+        res = utils.authenticate(diversifiedAuthKey.getBytes());
         if (!res) {
-            Utilities.log("Authentication failed in issue()", true);
             infoToShow = "Authentication failed!";
-            System.err.println("ERROR: problems while authenticating card in method use().");
+            Utilities.log("ERROR: problems while authenticating card in method use().", true);
             return false;
         }
-        System.out.println("INFO: Authentication Successful in method use()");
+        Utilities.log("INFO: Authentication Successful in method use()", false);
 
-        //TODO: handle the ride counter.
+        // Get maximum number of usages.
+        byte[] rawMaxNumUsages = new byte[4];
+        boolean checkMaxUsages = utils.readPages(7, 1, rawMaxNumUsages, 0);
+        if (!checkMaxUsages) {
+            infoToShow = "Unable to get Max number of usages!";
+            Utilities.log("ERROR: problems while reading Max usages in use().", true);
+            return false;
+        }
+        int maxUsages = byteArrayToInt(rawMaxNumUsages);
+        Utilities.log("INFO: Max number of usages read successfully in use() maxUsages: "+maxUsages, false);
 
-        //TODO: recalculate hash if necessary.
+        // Get DaysValid from page 8.
+        byte[] rawDaysValid = new byte[4];
+        boolean checkDaysValid = utils.readPages(8, 1, rawDaysValid, 0);
+        if (!checkDaysValid) {
+            infoToShow = "Unable to get DaysValid in use()!";
+            Utilities.log("ERROR: problems while reading DaysValid in use().", true);
+            return false;
+        }
+        int daysValid = byteArrayToInt(rawDaysValid);
+        Utilities.log("INFO: DaysValid read successfully in use() DaysValid: "+daysValid, false);
 
-        //TODO: handle related pages in the comment in issue() method.
+        // Set issue date if validating for the first time or get issue date if not.
+        byte[] rawIssueDate = new byte[20];
+        boolean checkIssueDate = utils.readPages(9, 5, rawIssueDate, 0);
+        Date issueDate;
+        if (!checkIssueDate) {
+            infoToShow = "Unable to get the issue date in use()!";
+            Utilities.log("ERROR: problems while reading issueDate in use().", true);
+            return false;
+        }else {
+            int issueDateExistence = byteArrayToInt(rawIssueDate);
 
-        //TODO: clear tag and reset AUTH bits and key? when ticket is no longer valid.
+            if (issueDateExistence == 0) {
+                //Issue date does not exist
+                String currentDate = getCurrentTimeStamp();
+                //System.out.println("Number of bytes in currentDate: "+currentDate.getBytes().length);
+                byte[] currentDateBytes = new byte[20];
+                System.arraycopy(currentDate.getBytes(), 0, currentDateBytes, 0, 19);
+
+                //write currentDate to pages 9-13.
+                //CRITICAL
+                boolean writeIssueDate = utils.writePages(currentDateBytes, 0, 9, 5);
+                //CRITICAL
+
+                if (!writeIssueDate) {
+                    infoToShow = "Unable to write the issue date in use()!";
+                    Utilities.log("ERROR: problems while writing issueDate as currentDate in use(). currentDate: " + currentDate, true);
+                    return false;
+                }
+                issueDate = parseDateFromByteArray(currentDateBytes);
+                Utilities.log("INFO: Issue date was written successfully in use() issueDate: " + issueDate, false);
+
+            } else {
+
+                issueDate = parseDateFromByteArray(rawIssueDate);
+                Utilities.log("INFO: Issue date read successfully in use() issueDate: " + issueDate, false);
+
+            }
+        }
+
+        // Calculate expiry date from issue date and daysValid
+
+
+        // Get mac from pages 14-18.
+        byte[] rawMac = new byte[20];
+        boolean checkMac = utils.readPages(14, 5, rawMac, 0);
+        if (!checkMac) {
+            infoToShow = "Unable to get HMAC in use()!";
+            Utilities.log("ERROR: problems while reading HMAC in use().", true);
+            return false;
+        }
+        String cardMac = convertByteArrayToHex(rawMac);
+        Utilities.log("INFO: HMAC read successfully in use() HMAC: "+cardMac, false);
+
+        // Generate HMAC which initially is HMAC("maxUsages||daysValid")
+        macAlgorithm.setKey(diversifiedMacKey.getBytes());
+        byte[] macGeneratedRaw = macAlgorithm.generateMac((maxUsages + "||" + daysValid).getBytes());
+        String macGenerated = convertByteArrayToHex(macGeneratedRaw);
+
+        // Compare generated mac with mac found in card.
+        if(!cardMac.equals(macGenerated)){
+            infoToShow = "Unable to verify HMAC in use()!";
+            Utilities.log("ERROR: problems while verifying HMAC in use().", true);
+            Utilities.log("ERROR: HMAC found in card: " + cardMac, true);
+            Utilities.log("ERROR: HMAC generated in use(): " + macGenerated, true);
+            return false;
+        }
+        Utilities.log("INFO: HMAC verified successfully in use()", false);
+        Utilities.log("INFO: HMAC found in card: " + cardMac, false);
+        Utilities.log("INFO: HMAC generated in use(): " + macGenerated, false);
+
+
+        // Critical
+        // TODO: recalculate hash if necessary.
+
+        // TODO: handle related pages in the comment in issue() method.
+
+        // TODO: clear tag and reset AUTH bits and key? when ticket is no longer valid.
 
         /*
          Example of reading:
