@@ -159,6 +159,11 @@ public class Ticket {
             }
             Utilities.log("INFO: Keys generated successfully in method issue()!", false);
 
+//            // Used this to unbrick my card UwU
+//            byte[] page42_ = new BigInteger("30000000", 16).toByteArray();
+//            boolean auth0Written_ = utils.writePages(page42_, 0, 42, 1);
+//            boolean writeAuthKey_ = utils.writePages(diversifiedAuthKey.getBytes(), 0, 44, 4);
+
             // Authenticate
             boolean res;
             // try first with default, if it doesn't work try with diversified
@@ -435,13 +440,7 @@ public class Ticket {
         // Calculate expiry date from issue date and daysValid
         Date expiryDate = new Date(issueDate.getTime() + (daysValid * 86400000L));
         Utilities.log("INFO: Calculated expiry date from issue date and daysValid expiryDate: "+expiryDate, false);
-        expiryTime = (int) expiryDate.getTime();
-
-//        // Check if card expired
-//        if(!expiryDate.after(issueDate)){
-//            // Card expired
-//
-//        }
+        expiryTime = (int) (expiryDate.getTime()/ 1000 / 60);
 
         // Get mac from pages 14-18.
         byte[] rawMac = new byte[20];
@@ -495,7 +494,7 @@ public class Ticket {
         Utilities.log("INFO: InitialCounterValue read successfully in use() InitialCounterValue: "+InitialCounterValue, false);
 
         // Check if card still valid before incrementing usedRides.
-        remainingUses = usedRides - InitialCounterValue;
+        remainingUses = maxUsages - (usedRides - InitialCounterValue);
         if(!(usedRides - InitialCounterValue < maxUsages) || !expiryDate.after(issueDate)){
             // Card expired.
             isValid = false;
