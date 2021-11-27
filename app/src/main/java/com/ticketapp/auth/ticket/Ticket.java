@@ -289,7 +289,7 @@ public class Ticket {
                 Utilities.log("ERROR: problems while writing Tag in issue().", true);
                 return false;
             }
-
+            infoToShow = "Ticket issued successfully!";
             Utilities.log("INFO: Ticket issued successfully!", false);
 
         }
@@ -338,7 +338,7 @@ public class Ticket {
         byte[] cardApplicationTag = new byte[4];
         boolean readSuccessful = utils.readPages(4, 1, cardApplicationTag, 0);
         if (!readSuccessful || !applicationTag.equals(new String(cardApplicationTag))) {
-            infoToShow = "Ticket was not issued correctly!";
+            infoToShow = "Ticket was not issued correctly or Card has expired!";
             Utilities.log("ERROR: problems while reading tag in method use().", true);
             return false;
 
@@ -496,8 +496,6 @@ public class Ticket {
         int InitialCounterValue = byteArrayToInt(rawInitialCounterValue);
         Utilities.log("INFO: InitialCounterValue read successfully in use() InitialCounterValue: "+InitialCounterValue, false);
 
-        // Check if card still valid before incrementing usedRides.
-        remainingUses = maxUsages - (usedRides - InitialCounterValue);
         if(!(usedRides - InitialCounterValue < maxUsages) || !expiryDate.after(issueDate)){
             // Card expired.
             isValid = false;
@@ -529,7 +527,8 @@ public class Ticket {
 
             Utilities.log("INFO: Validation of card was successful!", false);
         }
-
+        // Check if card still valid before incrementing usedRides.
+        remainingUses = maxUsages - (usedRides - InitialCounterValue);
         /*
          Example of reading:
          byte[] message = new byte[4];
