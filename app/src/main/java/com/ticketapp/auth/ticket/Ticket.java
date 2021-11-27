@@ -338,10 +338,8 @@ public class Ticket {
         byte[] cardApplicationTag = new byte[4];
         boolean readSuccessful = utils.readPages(4, 1, cardApplicationTag, 0);
         if (!readSuccessful || !applicationTag.equals(new String(cardApplicationTag))) {
-            infoToShow = "Ticket was not issued correctly or Card has expired!";
-            Utilities.log("ERROR: problems while reading tag in method use().", true);
+            invalidateCard("ERROR: problems while reading tag in method use().", "Ticket was not issued correctly or Card has expired!");
             return false;
-
         }
         Utilities.log("INFO: tag read Successful in method use()", false);
 
@@ -349,8 +347,7 @@ public class Ticket {
         byte[] cardUIDFull = new byte[8];
         boolean checkCardUID = utils.readPages(0, 2, cardUIDFull, 0);
         if (!checkCardUID) {
-            infoToShow = "Unable to read UID!";
-            Utilities.log("ERROR: problems while reading UID in use().", true);
+            invalidateCard("ERROR: problems while reading UID in use().", "Unable to read UID!");
             return false;
         }
         byte[] cardUID = new byte[7];
@@ -364,8 +361,7 @@ public class Ticket {
         String diversifiedMacKey = createDiversifiedKey(new String(hmacKey), convertByteArrayToHex(cardUID));
 
         if (diversifiedAuthKey == null || diversifiedMacKey == null) {
-            infoToShow = "Error generating keys!";
-            Utilities.log("ERROR: problems while generating keys in use().", true);
+            invalidateCard("ERROR: problems while generating keys in use().", "Error generating keys!");
             return false;
         }
         Utilities.log("INFO: Keys generated successfully in method use()!", false);
@@ -373,8 +369,7 @@ public class Ticket {
         // Authenticate
         res = utils.authenticate(diversifiedAuthKey.getBytes());
         if (!res) {
-            infoToShow = "Authentication failed!";
-            Utilities.log("ERROR: problems while authenticating card in method use().", true);
+            invalidateCard("ERROR: problems while authenticating card in method use().", "Authentication failed!");
             return false;
         }
         Utilities.log("INFO: Authentication Successful in method use()", false);
@@ -383,8 +378,7 @@ public class Ticket {
         byte[] rawMaxNumUsages = new byte[4];
         boolean checkMaxUsages = utils.readPages(7, 1, rawMaxNumUsages, 0);
         if (!checkMaxUsages) {
-            infoToShow = "Unable to get Max number of usages!";
-            Utilities.log("ERROR: problems while reading Max usages in use().", true);
+            invalidateCard("ERROR: problems while reading Max usages in use().", "Unable to get Max number of usages!");
             return false;
         }
         int maxUsages = byteArrayToInt(rawMaxNumUsages);
@@ -394,8 +388,7 @@ public class Ticket {
         byte[] rawDaysValid = new byte[4];
         boolean checkDaysValid = utils.readPages(8, 1, rawDaysValid, 0);
         if (!checkDaysValid) {
-            infoToShow = "Unable to get DaysValid in use()!";
-            Utilities.log("ERROR: problems while reading DaysValid in use().", true);
+            invalidateCard("ERROR: problems while reading DaysValid in use().", "Unable to get DaysValid in use()!");
             return false;
         }
         int daysValid = byteArrayToInt(rawDaysValid);
@@ -406,8 +399,7 @@ public class Ticket {
         boolean checkIssueDate = utils.readPages(9, 5, rawIssueDate, 0);
         Date issueDate;
         if (!checkIssueDate) {
-            infoToShow = "Unable to get the issue date in use()!";
-            Utilities.log("ERROR: problems while reading issueDate in use().", true);
+            invalidateCard("ERROR: problems while reading issueDate in use().", "Unable to get the issue date in use()!");
             return false;
         }else {
             int issueDateExistence = byteArrayToInt(rawIssueDate);
@@ -425,19 +417,17 @@ public class Ticket {
                 //CRITICAL
 
                 if (!writeIssueDate) {
-                    infoToShow = "Unable to write the issue date in use()!";
-                    Utilities.log("ERROR: problems while writing issueDate as currentDate in use(). currentDate: " + currentDate, true);
+                    invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). currentDate: " + currentDate, "Unable to write the issue date in use()!");
                     return false;
                 }
                 try {
                     issueDate = parseDateFromByteArray(currentDateBytes);
                 } catch (Exception e) {
                     e.printStackTrace();
-                    Utilities.log("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", true);
-                    infoToShow = "Unable to write the issue date in use()!";
+                    invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", "Unable to write the issue date in use()!");
                     boolean eraseTag = utils.writePages(intToByteArray(0), 0, 4, 1);
                     if(!eraseTag){
-                        Utilities.log("ERROR: Was not able to reset tag", true);
+                        invalidateCard("ERROR: Was not able to reset tag", "Was not able to erase Tag, return card to administrator!");
                         return false;
                     }
                     return false;
@@ -450,8 +440,7 @@ public class Ticket {
                     issueDate = parseDateFromByteArray(rawIssueDate);
                 } catch (Exception e) {
                     e.printStackTrace();
-                    Utilities.log("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", true);
-                    infoToShow = "Unable to write the issue date in use()!";
+                    invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", "Unable to write the issue date in use()!");
                     boolean eraseTag = utils.writePages(intToByteArray(0), 0, 4, 1);
                     if(!eraseTag){
                         Utilities.log("ERROR: Was not able to reset tag", true);
@@ -472,8 +461,7 @@ public class Ticket {
         byte[] rawMac = new byte[20];
         boolean checkMac = utils.readPages(14, 5, rawMac, 0);
         if (!checkMac) {
-            infoToShow = "Unable to get HMAC in use()!";
-            Utilities.log("ERROR: problems while reading HMAC in use().", true);
+            invalidateCard("ERROR: problems while reading HMAC in use().", "Unable to get HMAC in use()!");
             return false;
         }
         String cardMac = convertByteArrayToHex(rawMac);
@@ -486,10 +474,10 @@ public class Ticket {
 
         // Compare generated mac with mac found in card.
         if(!cardMac.equals(macGenerated)){
-            infoToShow = "Unable to verify HMAC in use()!";
-            Utilities.log("ERROR: problems while verifying HMAC in use().", true);
-            Utilities.log("ERROR: HMAC found in card: " + cardMac, true);
-            Utilities.log("ERROR: HMAC generated in use(): " + macGenerated, true);
+            invalidateCard("ERROR: problems while verifying HMAC in use(). " +
+                            "HMAC found in card: "+ cardMac +
+                            " HMAC generated in use(): "+macGenerated
+                    , "Unable to verify HMAC in use()!");
             return false;
         }
         Utilities.log("INFO: HMAC verified successfully in use()", false);
@@ -501,8 +489,7 @@ public class Ticket {
         byte[] rawUsedRides = new byte[4];
         boolean checkUsedRides = utils.readPages(20, 1, rawUsedRides, 0);
         if (!checkUsedRides) {
-            infoToShow = "Unable to get usedRides in use()!";
-            Utilities.log("ERROR: problems while reading usedRides in use().", true);
+            invalidateCard("ERROR: problems while reading usedRides in use().", "Unable to get usedRides in use()!");
             return false;
         }
         int usedRides = byteArrayToInt(rawUsedRides);
@@ -512,8 +499,7 @@ public class Ticket {
         byte[] rawInitialCounterValue = new byte[4];
         boolean checkInitialCounterValue = utils.readPages(21, 1, rawInitialCounterValue, 0);
         if (!checkInitialCounterValue) {
-            infoToShow = "Unable to get InitialCounterValue in use()!";
-            Utilities.log("ERROR: problems while reading InitialCounterValue in use().", true);
+            invalidateCard("ERROR: problems while reading InitialCounterValue in use().", "Unable to get InitialCounterValue in use()!");
             return false;
         }
         int InitialCounterValue = byteArrayToInt(rawInitialCounterValue);
@@ -521,15 +507,12 @@ public class Ticket {
 
         if(!(usedRides - InitialCounterValue < maxUsages) || !expiryDate.after(issueDate)){
             // Card expired.
-            isValid = false;
-
-            infoToShow = "Your card has expired in use()!";
-            Utilities.log("INFO: Card has expired. Check if the values above make sense. Resetting...", false);
+            invalidateCard("INFO: Card has expired. Check if the values above make sense. Resetting...", "Your card has expired in use()!");
 
             // Erase Tag
             boolean eraseTag = utils.writePages(intToByteArray(0), 0, 4, 1);
             if(!eraseTag){
-                Utilities.log("ERROR: Was not able to reset tag", true);
+                invalidateCard("ERROR: Was not able to reset tag", "Was not able to erase Tag, return card to administrator!");
                 return false;
             }
 
@@ -543,8 +526,7 @@ public class Ticket {
             // Write new usedRides to counter.
             boolean checkNewUsedRides = utils.writePages(intToByteArray(usedRides), 0, 20, 1);
             if(!checkNewUsedRides){
-                infoToShow = "Unable increment usedRides in use()!";
-                Utilities.log("ERROR: Was not able to update usedRides in use().", true);
+                invalidateCard("ERROR: Was not able to update usedRides in use().", "Unable increment usedRides in use()!");
                 return false;
             }
 
@@ -602,9 +584,9 @@ public class Ticket {
         return ByteBuffer.wrap(value).getInt();
     }
 
-    private void invalidateCard(String message){
-        infoToShow = message;
-        Utilities.log(message, true);
+    private void invalidateCard(String Errormessage, String messageToShow){
+        infoToShow = messageToShow;
+        Utilities.log(Errormessage, true);
         isValid = false;
     }
 
