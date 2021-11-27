@@ -347,7 +347,7 @@ public class Ticket {
         byte[] cardApplicationTag = new byte[4];
         boolean readSuccessful = utils.readPages(4, 1, cardApplicationTag, 0);
         if (!readSuccessful || !applicationTag.equals(new String(cardApplicationTag))) {
-            invalidateCard("ERROR: problems while reading tag in method use().", "Ticket was not issued correctly or Card has expired!");
+            invalidateCard("ERROR: problems while reading tag in method use(). Re-issue the ticket.", "Ticket was not issued correctly or Card has expired!");
             return false;
         }
         Utilities.log("INFO: tag read Successful in method use()", false);
@@ -528,6 +528,7 @@ public class Ticket {
             // TODO: Reset auth params?
 
             Utilities.log("INFO: Card has been reset.", false);
+            return false;
         } else {
             // Card is still valid, increment counter.
             usedRides += 1;
@@ -556,6 +557,7 @@ public class Ticket {
          }
         */
 
+        isValid = true; //For fucks sake why is the return not used.
         return true;
     }
 
@@ -593,9 +595,9 @@ public class Ticket {
         return ByteBuffer.wrap(value).getInt();
     }
 
-    private void invalidateCard(String Errormessage, String messageToShow){
+    private void invalidateCard(String ErrorMessage, String messageToShow){
         infoToShow = messageToShow;
-        Utilities.log(Errormessage, true);
+        Utilities.log(ErrorMessage, true);
         isValid = false;
     }
 
