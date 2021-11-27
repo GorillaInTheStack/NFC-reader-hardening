@@ -421,7 +421,7 @@ public class Ticket {
 
                 //write currentDate to pages 9-13.
                 //CRITICAL
-                boolean writeIssueDate = utils.writePages(currentDateBytes, 0, 9, 5);
+                boolean writeIssueDate= utils.writePages(currentDateBytes, 0, 9, 5);
                 //CRITICAL
 
                 if (!writeIssueDate) {
@@ -429,14 +429,37 @@ public class Ticket {
                     Utilities.log("ERROR: problems while writing issueDate as currentDate in use(). currentDate: " + currentDate, true);
                     return false;
                 }
-                issueDate = parseDateFromByteArray(currentDateBytes);
+                try {
+                    issueDate = parseDateFromByteArray(currentDateBytes);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Utilities.log("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", true);
+                    infoToShow = "Unable to write the issue date in use()!";
+                    boolean eraseTag = utils.writePages(intToByteArray(0), 0, 4, 1);
+                    if(!eraseTag){
+                        Utilities.log("ERROR: Was not able to reset tag", true);
+                        return false;
+                    }
+                    return false;
+                }
                 Utilities.log("INFO: Issue date was written successfully in use() issueDate: " + issueDate, false);
 
             } else {
 
-                issueDate = parseDateFromByteArray(rawIssueDate);
+                try {
+                    issueDate = parseDateFromByteArray(rawIssueDate);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Utilities.log("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", true);
+                    infoToShow = "Unable to write the issue date in use()!";
+                    boolean eraseTag = utils.writePages(intToByteArray(0), 0, 4, 1);
+                    if(!eraseTag){
+                        Utilities.log("ERROR: Was not able to reset tag", true);
+                        return false;
+                    }
+                    return false;
+                }
                 Utilities.log("INFO: Issue date read successfully in use() issueDate: " + issueDate, false);
-
             }
         }
 
@@ -579,19 +602,24 @@ public class Ticket {
         return ByteBuffer.wrap(value).getInt();
     }
 
+    private void invalidateCard(String message){
+        infoToShow = message;
+        Utilities.log(message, true);
+        isValid = false;
+    }
+
     // TODO validate methods, timestamp is 19 bytes
     private String getCurrentTimeStamp() {
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss");
         return dateFormat.format(new Date());
     }
 
-    private Date parseDateFromByteArray(byte[] date) {
+    private Date parseDateFromByteArray(byte[] date) throws Exception {
         String s = new String((byte[]) date);
         try {
             return new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss").parse(s);
         } catch (ParseException e) {
-            e.printStackTrace();
+            throw new Exception(e);
         }
-        return null;
     }
 }
