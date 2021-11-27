@@ -48,7 +48,7 @@ public class Ticket {
     private Boolean isValid = true; //should be changed accordingly. Used elsewhere.
     private int remainingUses = 10; //default.
     private int expiryTime;
-            //(int) ((new Date()).getTime() / 1000 / 60) + 1440; //default, 24h in minutes.
+    //(int) ((new Date()).getTime() / 1000 / 60) + 1440; //default, 24h in minutes.
 
     private static String infoToShow = "-"; // Use this to show messages
 
@@ -133,7 +133,7 @@ public class Ticket {
         boolean checkApplicationTag = utils.readPages(4, 1, cardApplicationTag, 0);
 
         // Set information to show for the user
-        if (false && checkApplicationTag && applicationTag.equals(new String(cardApplicationTag))) {
+        if (checkApplicationTag && applicationTag.equals(new String(cardApplicationTag))) {
             infoToShow = "Ticket already issued!";
             return false;
 
@@ -174,24 +174,33 @@ public class Ticket {
             res = utils.authenticate(defaultAuthenticationKey);
             if (!res) {
                 res = utils.authenticate(diversifiedAuthKey.getBytes());
-                if (!res) {
-                    Utilities.log("Authentication failed in issue()", true);
+                if (!res)
                     infoToShow = "Authentication failed";
-                    return false;
-                }
             }
-            Utilities.log("INFO: Authentication successful in method issue()!", false);
+            if (!res)
+                Utilities.log("Authentication failed in issue()", true);
+            else Utilities.log("INFO: Authentication successful in method issue()!", false);
+
+            // Setting Auth0 to 30h to remove read and write restrictions
+            byte[] page42 = new BigInteger("30000000", 16).toByteArray();
+            boolean auth0Written = utils.writePages(page42, 0, 42, 1);
+            if (!auth0Written) {
+                infoToShow = "Failed to reset Auth0!";
+                Utilities.log("ERROR: problems while resetting Auth0 in issue().", true);
+                return false;
+            }
+            Utilities.log("INFO: Auth0 reset successfully in method issue()!", false);
 
             // Before erasing content, keep current value of counter.
             byte[] rawCurrentValueCounter = new byte[4];
             boolean checkCurrentValueCounter = utils.readPages(20, 1, rawCurrentValueCounter, 0);
-            if(!checkCurrentValueCounter){
+            if (!checkCurrentValueCounter) {
                 infoToShow = "There was a problem reading the counter of the card!";
                 Utilities.log("ERROR: problems while reading current counter in issue().", true);
                 return false;
             }
             int currentCounter = byteArrayToInt(rawCurrentValueCounter);
-            Utilities.log("INFO: read current counter value successfully Counter: "+currentCounter, false);
+            Utilities.log("INFO: read current counter value successfully Counter: " + currentCounter, false);
 
             // erase card content
             boolean cardErased = utils.eraseMemory();
@@ -209,7 +218,7 @@ public class Ticket {
                 Utilities.log("ERROR: problems while writing initial counter value in issue().", true);
                 return false;
             }
-            Utilities.log("INFO: initial counter value was put successfully in issue()! Counter: "+currentCounter, false);
+            Utilities.log("INFO: initial counter value was put successfully in issue()! Counter: " + currentCounter, false);
 
             // TODO: THIS NEXT PIECE OF CODE IS NEEDED ONLY BECAUSE WE'RE NOT USING THE COUNTER
             // TODO: DO NOT FORGET TO DELETE THIS BEFORE SWITCHING TO THE REAL COUNTER!!!!!
@@ -221,7 +230,7 @@ public class Ticket {
                 Utilities.log("ERROR: problems while writing fake counter value in issue().", true);
                 return false;
             }
-            Utilities.log("INFO: fake counter value was put back into place after clearing memory Counter: "+currentCounter, false);
+            Utilities.log("INFO: fake counter value was put back into place after clearing memory Counter: " + currentCounter, false);
 
             // TODO: END OF CODE TO BE DELETED.
 
@@ -252,7 +261,7 @@ public class Ticket {
                 Utilities.log("ERROR: problems while writing HMAC in issue().", true);
                 return false;
             }
-            Utilities.log("INFO: HMAC written successfully in method issue()! HMAC: "+ convertByteArrayToHex(mac), false);
+            Utilities.log("INFO: HMAC written successfully in method issue()! HMAC: " + convertByteArrayToHex(mac), false);
 
             boolean writeAuthKey = utils.writePages(diversifiedAuthKey.getBytes(), 0, 44, 4);
             if (!writeAuthKey) {
@@ -273,8 +282,8 @@ public class Ticket {
 
 
             // Setting Auth0 to 2bh to protect Auth1 and Key
-            byte[] page42 = new BigInteger("2b000000", 16).toByteArray();
-            boolean auth0Written = utils.writePages(page42, 0, 42, 1);
+            page42 = new BigInteger("2b000000", 16).toByteArray();
+            auth0Written = utils.writePages(page42, 0, 42, 1);
             if (!auth0Written) {
                 infoToShow = "Failed to configure Auth0!";
                 Utilities.log("ERROR: problems while configuring Auth0 in issue().", true);
@@ -388,7 +397,7 @@ public class Ticket {
             return false;
         }
         int maxUsages = byteArrayToInt(rawMaxNumUsages);
-        Utilities.log("INFO: Max number of usages read successfully in use() maxUsages: "+maxUsages, false);
+        Utilities.log("INFO: Max number of usages read successfully in use() maxUsages: " + maxUsages, false);
 
         // Get DaysValid from page 8.
         byte[] rawDaysValid = new byte[4];
@@ -399,7 +408,7 @@ public class Ticket {
             return false;
         }
         int daysValid = byteArrayToInt(rawDaysValid);
-        Utilities.log("INFO: DaysValid read successfully in use() DaysValid: "+daysValid, false);
+        Utilities.log("INFO: DaysValid read successfully in use() DaysValid: " + daysValid, false);
 
         // Set issue date if validating for the first time or get issue date if not.
         byte[] rawIssueDate = new byte[20];
@@ -409,7 +418,7 @@ public class Ticket {
             infoToShow = "Unable to get the issue date in use()!";
             Utilities.log("ERROR: problems while reading issueDate in use().", true);
             return false;
-        }else {
+        } else {
             int issueDateExistence = byteArrayToInt(rawIssueDate);
 
             if (issueDateExistence == 0) {
@@ -442,8 +451,8 @@ public class Ticket {
 
         // Calculate expiry date from issue date and daysValid
         Date expiryDate = new Date(issueDate.getTime() + (daysValid * 86400000L));
-        Utilities.log("INFO: Calculated expiry date from issue date and daysValid expiryDate: "+expiryDate, false);
-        expiryTime = (int) (expiryDate.getTime()/ 1000 / 60);
+        Utilities.log("INFO: Calculated expiry date from issue date and daysValid expiryDate: " + expiryDate, false);
+        expiryTime = (int) (expiryDate.getTime() / 1000 / 60);
 
         // Get mac from pages 14-18.
         byte[] rawMac = new byte[20];
@@ -454,7 +463,7 @@ public class Ticket {
             return false;
         }
         String cardMac = convertByteArrayToHex(rawMac);
-        Utilities.log("INFO: HMAC read successfully in use() HMAC: "+cardMac, false);
+        Utilities.log("INFO: HMAC read successfully in use() HMAC: " + cardMac, false);
 
         // Generate HMAC which initially is HMAC("maxUsages||daysValid")
         macAlgorithm.setKey(diversifiedMacKey.getBytes());
@@ -462,7 +471,7 @@ public class Ticket {
         String macGenerated = convertByteArrayToHex(macGeneratedRaw);
 
         // Compare generated mac with mac found in card.
-        if(!cardMac.equals(macGenerated)){
+        if (!cardMac.equals(macGenerated)) {
             infoToShow = "Unable to verify HMAC in use()!";
             Utilities.log("ERROR: problems while verifying HMAC in use().", true);
             Utilities.log("ERROR: HMAC found in card: " + cardMac, true);
@@ -483,7 +492,7 @@ public class Ticket {
             return false;
         }
         int usedRides = byteArrayToInt(rawUsedRides);
-        Utilities.log("INFO: usedRides read successfully in use() usedRides: "+usedRides, false);
+        Utilities.log("INFO: usedRides read successfully in use() usedRides: " + usedRides, false);
 
         // We will use page 20 as temporary counter.
         byte[] rawInitialCounterValue = new byte[4];
@@ -494,9 +503,9 @@ public class Ticket {
             return false;
         }
         int InitialCounterValue = byteArrayToInt(rawInitialCounterValue);
-        Utilities.log("INFO: InitialCounterValue read successfully in use() InitialCounterValue: "+InitialCounterValue, false);
+        Utilities.log("INFO: InitialCounterValue read successfully in use() InitialCounterValue: " + InitialCounterValue, false);
 
-        if(!(usedRides - InitialCounterValue < maxUsages) || !expiryDate.after(issueDate)){
+        if (!(usedRides - InitialCounterValue < maxUsages) || !expiryDate.after(issueDate)) {
             // Card expired.
             isValid = false;
 
@@ -505,7 +514,7 @@ public class Ticket {
 
             // Erase Tag
             boolean eraseTag = utils.writePages(intToByteArray(0), 0, 4, 1);
-            if(!eraseTag){
+            if (!eraseTag) {
                 Utilities.log("ERROR: Was not able to reset tag", true);
                 return false;
             }
@@ -513,13 +522,13 @@ public class Ticket {
             // TODO: Reset auth params?
 
             Utilities.log("INFO: Card has been reset.", false);
-        }else{
+        } else {
             // Card is still valid, increment counter.
             usedRides += 1;
 
             // Write new usedRides to counter.
             boolean checkNewUsedRides = utils.writePages(intToByteArray(usedRides), 0, 20, 1);
-            if(!checkNewUsedRides){
+            if (!checkNewUsedRides) {
                 infoToShow = "Unable increment usedRides in use()!";
                 Utilities.log("ERROR: Was not able to update usedRides in use().", true);
                 return false;
