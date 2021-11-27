@@ -252,9 +252,9 @@ public class Ticket {
             }
             Utilities.log("INFO: Number of valid days written successfully in method issue()!", false);
 
-            // Generate and write HMAC which initially is HMAC("rides||daysValid")
+            // Generate and write HMAC which initially is HMAC("maxUsages||daysValid||currentCounter||initialCounter||issueDate")
             macAlgorithm.setKey(diversifiedMacKey.getBytes());
-            byte[] mac = macAlgorithm.generateMac((uses + "||" + daysValid).getBytes());
+            byte[] mac = macAlgorithm.generateMac((uses + "||" + daysValid+"||"+currentCounter+"||"+currentCounter+"||"+0).getBytes());
             boolean writeHMAC = utils.writePages(mac, 0, 14, 5);
             if (!writeHMAC) {
                 infoToShow = "Unable to write HMAC!";
@@ -403,96 +403,6 @@ public class Ticket {
         int daysValid = byteArrayToInt(rawDaysValid);
         Utilities.log("INFO: DaysValid read successfully in use() DaysValid: " + daysValid, false);
 
-        // Set issue date if validating for the first time or get issue date if not.
-        byte[] rawIssueDate = new byte[20];
-        boolean checkIssueDate = utils.readPages(9, 5, rawIssueDate, 0);
-        Date issueDate;
-        if (!checkIssueDate) {
-            invalidateCard("ERROR: problems while reading issueDate in use().", "Unable to get the issue date in use()!");
-            return false;
-        } else {
-            int issueDateExistence = byteArrayToInt(rawIssueDate);
-
-            if (issueDateExistence == 0) {
-                //Issue date does not exist
-                String currentDate = getCurrentTimeStamp();
-                //System.out.println("Number of bytes in currentDate: "+currentDate.getBytes().length);
-                byte[] currentDateBytes = new byte[20];
-                System.arraycopy(currentDate.getBytes(), 0, currentDateBytes, 0, 19);
-
-                //write currentDate to pages 9-13.
-                //CRITICAL
-                boolean writeIssueDate= utils.writePages(currentDateBytes, 0, 9, 5);
-                //CRITICAL
-
-                if (!writeIssueDate) {
-                    invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). currentDate: " + currentDate, "Unable to write the issue date in use()!");
-                    return false;
-                }
-                try {
-                    issueDate = parseDateFromByteArray(currentDateBytes);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", "Unable to write the issue date in use()!");
-                    boolean eraseTag = utils.writePages(intToByteArray(0), 0, 4, 1);
-                    if(!eraseTag){
-                        invalidateCard("ERROR: Was not able to reset tag", "Was not able to erase Tag, return card to administrator!");
-                        return false;
-                    }
-                    return false;
-                }
-                Utilities.log("INFO: Issue date was written successfully in use() issueDate: " + issueDate, false);
-
-            } else {
-
-                try {
-                    issueDate = parseDateFromByteArray(rawIssueDate);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", "Unable to write the issue date in use()!");
-                    boolean eraseTag = utils.writePages(intToByteArray(0), 0, 4, 1);
-                    if(!eraseTag){
-                        Utilities.log("ERROR: Was not able to reset tag", true);
-                        return false;
-                    }
-                    return false;
-                }
-                Utilities.log("INFO: Issue date read successfully in use() issueDate: " + issueDate, false);
-            }
-        }
-
-        // Calculate expiry date from issue date and daysValid
-        Date expiryDate = new Date(issueDate.getTime() + (daysValid * 86400000L));
-        Utilities.log("INFO: Calculated expiry date from issue date and daysValid expiryDate: " + expiryDate, false);
-        expiryTime = (int) (expiryDate.getTime() / 1000 / 60);
-
-        // Get mac from pages 14-18.
-        byte[] rawMac = new byte[20];
-        boolean checkMac = utils.readPages(14, 5, rawMac, 0);
-        if (!checkMac) {
-            invalidateCard("ERROR: problems while reading HMAC in use().", "Unable to get HMAC in use()!");
-            return false;
-        }
-        String cardMac = convertByteArrayToHex(rawMac);
-        Utilities.log("INFO: HMAC read successfully in use() HMAC: " + cardMac, false);
-
-        // Generate HMAC which initially is HMAC("maxUsages||daysValid")
-        macAlgorithm.setKey(diversifiedMacKey.getBytes());
-        byte[] macGeneratedRaw = macAlgorithm.generateMac((maxUsages + "||" + daysValid).getBytes());
-        String macGenerated = convertByteArrayToHex(macGeneratedRaw);
-
-        // Compare generated mac with mac found in card.
-        if(!cardMac.equals(macGenerated)){
-            invalidateCard("ERROR: problems while verifying HMAC in use(). " +
-                            "HMAC found in card: "+ cardMac +
-                            " HMAC generated in use(): "+macGenerated
-                    , "Unable to verify HMAC in use()!");
-            return false;
-        }
-        Utilities.log("INFO: HMAC verified successfully in use()", false);
-        Utilities.log("INFO: HMAC found in card: " + cardMac, false);
-        Utilities.log("INFO: HMAC generated in use(): " + macGenerated, false);
-
         // Get the number of rides taken ( TODO: Change to counter later. )
         // We will use page 20 as temporary counter.
         byte[] rawUsedRides = new byte[4];
@@ -511,19 +421,119 @@ public class Ticket {
             invalidateCard("ERROR: problems while reading InitialCounterValue in use().", "Unable to get InitialCounterValue in use()!");
             return false;
         }
-        int InitialCounterValue = byteArrayToInt(rawInitialCounterValue);
-        Utilities.log("INFO: InitialCounterValue read successfully in use() InitialCounterValue: " + InitialCounterValue, false);
+        int initialCounterValue = byteArrayToInt(rawInitialCounterValue);
+        Utilities.log("INFO: InitialCounterValue read successfully in use() InitialCounterValue: " + initialCounterValue, false);
 
-        if (!(usedRides - InitialCounterValue < maxUsages) || !expiryDate.after(issueDate)) {
+        // Set issue date if validating for the first time or get issue date if not.
+        byte[] rawIssueDate = new byte[20];
+        boolean checkIssueDate = utils.readPages(9, 5, rawIssueDate, 0);
+        Date issueDate;
+        if (!checkIssueDate) {
+            invalidateCard("ERROR: problems while reading issueDate in use().", "Unable to get the issue date in use()!");
+            return false;
+        } else {
+            int issueDateExistence = byteArrayToInt(rawIssueDate);
+
+            //Get card mac for first validation.
+            String cardMAC = getCardMAC(14);
+            //Validate mac for the first time.
+            boolean macValid = false;
+
+            if (issueDateExistence == 0) {
+                //Issue date does not exist
+
+                if(cardMAC != null) {
+                    macValid = checkMAC(diversifiedMacKey, daysValid, 0, maxUsages, usedRides, initialCounterValue, cardMAC);
+                }else{
+                    invalidateCard("ERROR: problems while getting MAC in card in use().", "Unable to get the MAC in card in use()!");
+                    return false;
+                }
+
+                if(!macValid){
+                    invalidateCard("ERROR: problems while validating first MAC in card in use().", "Unable to validate the first MAC in card in use()!");
+                    return false;
+                }
+
+                String currentDate = getCurrentTimeStamp();
+                //System.out.println("Number of bytes in currentDate: "+currentDate.getBytes().length);
+                byte[] currentDateBytes = new byte[20];
+                System.arraycopy(currentDate.getBytes(), 0, currentDateBytes, 0, 19);
+
+                //write currentDate to pages 9-13.
+                //CRITICAL
+                boolean writeIssueDate= utils.writePages(currentDateBytes, 0, 9, 5);
+                //CRITICAL
+
+                if (!writeIssueDate) {
+                    invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). currentDate: " + currentDate, "Unable to write the issue date in use()!");
+                    return false;
+                }
+                try {
+                    issueDate = parseDateFromByteArray(currentDateBytes);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", "Unable to write the issue date in use()!");;
+                    return false;
+                }
+                Utilities.log("INFO: Issue date was written successfully in use() issueDate: " + issueDate, false);
+
+            } else {
+                // Issue date already exist.
+
+                try {
+                    issueDate = parseDateFromByteArray(rawIssueDate);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", "Unable to write the issue date in use()!");
+                    return false;
+                }
+                Utilities.log("INFO: Issue date read successfully in use() issueDate: " + issueDate, false);
+
+                // check HMAC which initially is HMAC("maxUsages||daysValid||currentCounter||initialCounter||issueDate")
+                // This is when issue date is already set.
+                if(cardMAC != null) {
+                    macValid = checkMAC(diversifiedMacKey, daysValid, (int) issueDate.getTime(), maxUsages, usedRides, initialCounterValue, cardMAC);
+                }else{
+                    invalidateCard("ERROR: problems while getting MAC in card in use().", "Unable to get the MAC in card in use()!");
+                    return false;
+                }
+
+                if(!macValid){
+                    invalidateCard("ERROR: problems while validating the MAC in card in use().", "Unable to validate the MAC in card in use()!");
+                    return false;
+                }
+            }
+        }
+
+        // Calculate expiry date from issue date and daysValid
+        Date expiryDate = new Date(issueDate.getTime() + (daysValid * 86400000L));
+        Utilities.log("INFO: Calculated expiry date from issue date and daysValid expiryDate: " + expiryDate, false);
+        expiryTime = (int) (expiryDate.getTime() / 1000 / 60);
+
+
+
+//        // Generate HMAC which initially is HMAC("maxUsages||daysValid")
+//        macAlgorithm.setKey(diversifiedMacKey.getBytes());
+//        byte[] macGeneratedRaw = macAlgorithm.generateMac((maxUsages + "||" + daysValid).getBytes());
+//        String macGenerated = convertByteArrayToHex(macGeneratedRaw);
+
+        // Compare generated mac with mac found in card.
+//        if(!cardMac.equals(macGenerated)){
+//            invalidateCard("ERROR: problems while verifying HMAC in use(). " +
+//                            "HMAC found in card: "+ cardMac +
+//                            " HMAC generated in use(): "+macGenerated
+//                    , "Unable to verify HMAC in use()!");
+//            return false;
+//        }
+//        Utilities.log("INFO: HMAC verified successfully in use()", false);
+//        Utilities.log("INFO: HMAC found in card: " + cardMac, false);
+//        Utilities.log("INFO: HMAC generated in use(): " + macGenerated, false);
+
+
+
+        if (!(usedRides - initialCounterValue < maxUsages) || !expiryDate.after(issueDate)) {
             // Card expired.
             invalidateCard("INFO: Card has expired. Check if the values above make sense. Resetting...", "Your card has expired in use()!");
-
-            // Erase Tag
-            boolean eraseTag = utils.writePages(intToByteArray(0), 0, 4, 1);
-            if(!eraseTag){
-                invalidateCard("ERROR: Was not able to reset tag", "Was not able to erase Tag, return card to administrator!");
-                return false;
-            }
 
             // TODO: Reset auth params?
 
@@ -540,10 +550,21 @@ public class Ticket {
                 return false;
             }
 
+            // Generate and write new MAC to only one page (4bytes).
+            byte[] cardMAC = generateMAC(diversifiedMacKey, daysValid, (int)issueDate.getTime(), maxUsages, usedRides, initialCounterValue);
+            boolean checkMACWritten = utils.writePages(cardMAC, 0, 14, 1);
+            if(!checkMACWritten){
+                invalidateCard("ERROR: Was not able to update HMAC in use().", "Unable to update HMAC in use()!");
+                return false;
+            }
+            Utilities.log("INFO: Wrote new mac to card. New MAC: "+convertByteArrayToHex(cardMAC), false);
+
             Utilities.log("INFO: Validation of card was successful!", false);
         }
-        // Check if card still valid before incrementing usedRides.
-        remainingUses = maxUsages - (usedRides - InitialCounterValue);
+
+        // Check if card still valid.
+        remainingUses = maxUsages - (usedRides - initialCounterValue);
+
         /*
          Example of reading:
          byte[] message = new byte[4];
@@ -599,6 +620,11 @@ public class Ticket {
         infoToShow = messageToShow;
         Utilities.log(ErrorMessage, true);
         isValid = false;
+        // Erase Tag
+        boolean eraseTag = utils.writePages(intToByteArray(0), 0, 4, 1);
+        if(!eraseTag){
+            Utilities.log("ERROR: Could not invalidate card correctly, Tag was not erased.", true);
+        }
     }
 
     // TODO validate methods, timestamp is 19 bytes
@@ -614,5 +640,37 @@ public class Ticket {
         } catch (ParseException e) {
             throw new Exception(e);
         }
+    }
+
+    private boolean checkMAC(String diversifiedMacKey, int daysValid,int issueDate, int maxUsages, int currentCounter, int initialCounter, String cardMAC) throws GeneralSecurityException {
+        String macGenerated = convertByteArrayToHex(generateMAC(diversifiedMacKey, daysValid, issueDate, maxUsages, currentCounter, initialCounter));
+        Utilities.log("INFO: checkMAC is comparing cardMAC: "+ cardMAC +" With generatedMac: "+macGenerated, false);
+        return cardMAC.equals(macGenerated);
+    }
+
+    private byte[] generateMAC(String diversifiedMacKey, int daysValid,int issueDate, int maxUsages, int currentCounter, int initialCounter) throws GeneralSecurityException {
+        // Generate HMAC which initially is HMAC("maxUsages||daysValid||currentCounter||initialCounter||issueDate")
+        macAlgorithm.setKey(diversifiedMacKey.getBytes());
+        byte[] mac = macAlgorithm.generateMac((maxUsages + "||" + daysValid+"||"+currentCounter+"||"+initialCounter+"||"+issueDate).getBytes());
+        // Take only first 4 bytes.
+        byte[] macGeneratedRaw = new byte[4];
+        System.arraycopy(mac, 0, macGeneratedRaw, 0, 4);
+
+        return macGeneratedRaw;
+    }
+
+    private String getCardMAC(int startPage){
+        // Get mac from pages 14-18.
+        // Get only first 4 bytes.
+        byte[] rawMac = new byte[4];
+        boolean checkMac = utils.readPages(startPage, 1, rawMac, 0);
+        if (!checkMac) {
+            invalidateCard("ERROR: problems while reading HMAC in use().", "Unable to get HMAC in use()!");
+            return null;
+        }
+        String cardMac = convertByteArrayToHex(rawMac);
+        Utilities.log("INFO: HMAC read successfully in use() HMAC: " + cardMac, false);
+        return cardMac;
+
     }
 }
