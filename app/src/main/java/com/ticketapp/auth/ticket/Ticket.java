@@ -452,6 +452,7 @@ public class Ticket {
 
                 if(!macValid){
                     invalidateCard("ERROR: problems while validating first MAC in card in use().", "Unable to validate the first MAC in card in use()!");
+                    eraseTag();
                     return false;
                 }
 
@@ -467,6 +468,7 @@ public class Ticket {
 
                 if (!writeIssueDate) {
                     invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). currentDate: " + currentDate, "Unable to write the issue date in use()!");
+                    eraseTag();
                     return false;
                 }
                 try {
@@ -474,6 +476,7 @@ public class Ticket {
                 } catch (Exception e) {
                     e.printStackTrace();
                     invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", "Unable to write the issue date in use()!");
+                    eraseTag();
                     return false;
                 }
                 Utilities.log("INFO: Issue date was written successfully in use() issueDate: " + issueDate, false);
@@ -519,6 +522,7 @@ public class Ticket {
 
                 if(!macValidNew){
                     invalidateCard("ERROR: problems while validating the MAC in card in use().", "Unable to validate the MAC in card in use()!");
+                    eraseTag();
                     return false;
                 }
                 Utilities.log("INFO: Mac successfully validated in use() cardMac: " + cardMACNew, false);
@@ -535,7 +539,7 @@ public class Ticket {
         if (!(usedRides - initialCounterValue < maxUsages) || !expiryDate.after(issueDate)) {
             // Card expired.
             invalidateCard("INFO: Card has expired. Check if the values above make sense. Resetting...", "Your card has expired in use()!");
-
+            eraseTag();
             // TODO: Reset auth params?
 
             Utilities.log("INFO: Card has been reset.", false);
@@ -548,6 +552,7 @@ public class Ticket {
             boolean checkNewUsedRides = utils.writePages(incrementOne, 0, 41, 1);
             if(!checkNewUsedRides){
                 invalidateCard("ERROR: Was not able to update usedRides in use().", "Unable increment usedRides in use()!");
+                eraseTag();
                 return false;
             }
             Utilities.log("INFO: writing to counter was successful!", false);
@@ -601,6 +606,9 @@ public class Ticket {
         infoToShow = messageToShow;
         Utilities.log(ErrorMessage, true);
         isValid = false;
+    }
+
+    private void eraseTag(){
         // Erase Tag
         boolean eraseTag = utils.writePages(intToByteArray(0), 0, 4, 1);
         if(!eraseTag){
