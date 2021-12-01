@@ -563,6 +563,7 @@ public class Ticket {
         remainingUses = maxUsages - (usedRides - initialCounterValue);
 
 
+        infoToShow = "Use of card was successful!";
         isValid = true;
         return true;
     }
@@ -688,7 +689,7 @@ public class Ticket {
         if (!compareMac) {
             infoToShow = "MACs don't match!";
             Utilities.log("ERROR: problems while comparing HMAC in addAdditional().", true);
-            //TODO erase tag
+            eraseTag();
             return;
         }
 
@@ -697,7 +698,7 @@ public class Ticket {
         if (!usesWritten) {
             infoToShow = "Unable to write  new number of uses!";
             Utilities.log("ERROR: problems while writing new number of uses in addAdditional().", true);
-            //TODO erase tag
+            eraseTag();
             return;
         }
         Utilities.log("INFO: Number of uses written successfully in method addAdditional()! Uses: " + (maxUsages + additionalRides), false);
@@ -709,9 +710,10 @@ public class Ticket {
         if (!checkMACWritten) {
             infoToShow = "Unable to update HMAC in use()!";
             Utilities.log("ERROR: Was not able to update HMAC in use().", true);
-            //TODO erase tag
+            eraseTag();
             return;
         }
+        infoToShow = "Added 5 rides successfully!";
         Utilities.log("INFO: Wrote new mac to card. New MAC: " + convertByteArrayToHex(cardMACFromCard), false);
 
     }
@@ -757,7 +759,7 @@ public class Ticket {
         isValid = false;
     }
 
-    private void eraseTag(){
+    private void eraseTag() {
         // Erase Tag
         boolean eraseTag = utils.writePages(intToByteArray(0), 0, 4, 1);
         if (!eraseTag) {
@@ -772,7 +774,7 @@ public class Ticket {
     }
 
     private Date parseDateFromByteArray(byte[] date) throws Exception {
-        String s = new String((byte[]) date);
+        String s = new String(date);
         try {
             return new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss", Locale.getDefault()).parse(s);
         } catch (ParseException e) {
