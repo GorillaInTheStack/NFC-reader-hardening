@@ -486,6 +486,7 @@ public class Ticket {
               boolean checkMACWritten = utils.writePages(cardMACFromCard, 0, 14, 1);
               if(!checkMACWritten){
                   invalidateCard("ERROR: Was not able to update HMAC in use().", "Unable to update HMAC in use()!");
+                  eraseTag();
                   return false;
               }
               Utilities.log("INFO: Wrote new mac to card. New MAC: "+convertByteArrayToHex(cardMACFromCard), false);
