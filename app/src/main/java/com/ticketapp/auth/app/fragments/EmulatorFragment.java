@@ -30,8 +30,10 @@ public class EmulatorFragment extends Fragment {
 
     private Button btn_issue;
     private Button btn_validate;
+    private Button btn_update;
 
     public boolean issue_mode = false;
+    public boolean update_mode = false;
     public boolean active = false;
 
     public EmulatorFragment() {
@@ -47,7 +49,9 @@ public class EmulatorFragment extends Fragment {
         public void onClick(View v) {
             btn_validate.setSelected(true);
             btn_issue.setSelected(false);
+            btn_update.setSelected(false);
             issue_mode = false;
+            update_mode = false;
         }
     };
 
@@ -55,18 +59,45 @@ public class EmulatorFragment extends Fragment {
         public void onClick(View v) {
             btn_issue.setSelected(true);
             btn_validate.setSelected(false);
+            btn_update.setSelected(false);
             issue_mode = true;
+            update_mode = false;
+        }
+    };
+
+    private final View.OnClickListener update_listener = new View.OnClickListener() {
+        public void onClick(View v) {
+            btn_issue.setSelected(false);
+            btn_validate.setSelected(false);
+            btn_update.setSelected(true);
+            issue_mode = false;
+            update_mode = true;
         }
     };
 
     public void setCardAvailable(boolean b) {
         btn_validate.setEnabled(b);
         btn_issue.setEnabled(b);
+        btn_update.setEnabled(b);
         active = b;
-        if (issue_mode) {
+        if (update_mode) {
+            update();
+        } else if (issue_mode) {
             issue();
         } else {
             use();
+        }
+    }
+
+    public void update() {
+        if (active && Reader.connect()) {
+            try {
+                ticket.addAdditional(5);
+                ticket_info.setText(Ticket.getInfoToShow());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            Reader.disconnect();
         }
     }
 
@@ -143,13 +174,16 @@ public class EmulatorFragment extends Fragment {
 
         btn_issue = v.findViewById(R.id.issue_mode);
         btn_validate = v.findViewById(R.id.validate_mode);
+        btn_update = v.findViewById(R.id.update_mode);
 
         issue_mode = false;
         btn_issue.setSelected(false);
         btn_validate.setSelected(true);
+        btn_update.setSelected(false);
 
         btn_issue.setOnClickListener(issue_listener);
         btn_validate.setOnClickListener(validate_listener);
+        btn_update.setOnClickListener(update_listener);
 
         return v;
     }
