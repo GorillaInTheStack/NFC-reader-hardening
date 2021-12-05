@@ -108,8 +108,9 @@ public class Ticket {
           Page 4: program tag => applicationTag.
           Page 5-6: empty in case we want to add our own ID.
           Page 7: max number of uses => int maxUsages.
-          Page 8: number of days the ticket is valid from issue date => int daysValid.
-          Page 9-13: issue date
+          Page 8: date after which the ticket can't be used,  season expiry date in minutes.
+          Page 9: date of the first use in minutes
+          Page 10: 1 day, ticket validity after first use
           Page 14-18: HMAC
           Page 19: empty
           Page 20: Temporarily used as the counter for usedRides.
@@ -239,14 +240,25 @@ public class Ticket {
             }
             Utilities.log("INFO: Number of uses written successfully in method issue()!", false);
 
-            // write number of days valid
-            boolean daysValidWritten = utils.writePages(intToByteArray(daysValid), 0, 8, 1);
-            if (!daysValidWritten) {
-                infoToShow = "Unable to write number of days valid!";
-                Utilities.log("ERROR: problems while writing days valid in issue().", true);
+            // write season expiry date
+            int seasonExpiryDateInMinutes = getTimeAfter((int) (new Date().getTime() / 1000 / 60), daysValid);
+            boolean seasonExpiryDateWritten = utils.writePages(intToByteArray(seasonExpiryDateInMinutes), 0, 8, 1);
+            if (!seasonExpiryDateWritten) {
+                infoToShow = "Unable to write season expiry date!";
+                Utilities.log("ERROR: problems while writing season expiry date in issue().", true);
                 return false;
             }
-            Utilities.log("INFO: Number of valid days written successfully in method issue()!", false);
+            Utilities.log("INFO: Season expiry date written successfully in issue()!", false);
+
+            // write number of days the ticket is valid after first use
+            boolean daysValidWritten = utils.writePages(intToByteArray(1), 0, 9, 1);
+            if (!daysValidWritten) {
+                infoToShow = "Unable to write number of days of ticket validity!";
+                Utilities.log("ERROR: problems while writing days of ticket validity in issue().", true);
+                return false;
+            }
+            Utilities.log("INFO: Number of days of ticket validity written successfully in issue()!", false);
+
 
             // Generate and write HMAC which initially is HMAC("maxUsages||daysValid||initialCounter||issueDate")
             macAlgorithm.setKey(diversifiedMacKey.getBytes());
@@ -322,7 +334,7 @@ public class Ticket {
           Page 7: max number of uses => int maxUsages.
           Page 8: number of days the ticket is valid from issue date => int daysValid.
           Page 9-13: issue date
-          Page 14-18: HMAC
+          Page 14: HMAC
           Page 19: empty
           Page 20: Used for nothind. (legacy).
           Page 21: counter initial value.
@@ -722,6 +734,10 @@ public class Ticket {
     /**
      * Utility Functions
      */
+
+    private int getTimeAfter(int date, int days) {
+        return date + days * 24 * 60;
+    }
 
     private String createDiversifiedKey(String masterSecret, String UID) {
         MessageDigest digest;
