@@ -132,7 +132,7 @@ public class Ticket {
         boolean checkApplicationTag = utils.readPages(4, 1, cardApplicationTag, 0);
 
         // Set information to show for the user
-        if (checkApplicationTag && applicationTag.equals(new String(cardApplicationTag))) {
+        if (false&&checkApplicationTag && applicationTag.equals(new String(cardApplicationTag))) {
             infoToShow = "Ticket already issued!";
             return false;
 
@@ -262,8 +262,9 @@ public class Ticket {
 
             // Generate and write HMAC which initially is HMAC("maxUsages||daysValid||initialCounter||issueDate")
             macAlgorithm.setKey(diversifiedMacKey.getBytes());
-            byte[] mac = macAlgorithm.generateMac((uses + "||" + daysValid + "||" + currentCounter + "||" + 0).getBytes());
-            boolean writeHMAC = utils.writePages(mac, 0, 14, 5);
+//            byte[] mac = macAlgorithm.generateMac((uses + "||" + daysValid + "||" + currentCounter + "||" + 0).getBytes());
+            byte[] mac = generateMAC(diversifiedMacKey, seasonExpiryDateInMinutes, 0, uses, currentCounter);
+            boolean writeHMAC = utils.writePages(mac, 0, 14, 1);
             if (!writeHMAC) {
                 infoToShow = "Unable to write HMAC!";
                 Utilities.log("ERROR: problems while writing HMAC in issue().", true);
@@ -478,7 +479,7 @@ public class Ticket {
 
                 // TODO: store int in one page instead of the Date data structure.
                 //CRITICAL
-                boolean writeIssueDate = utils.writePages(intToByteArray((int)(currentDate.getTime()/1000/60)), 0, 9, 1);
+                boolean writeIssueDate = utils.writePages(intToByteArray((int) (currentDate.getTime() / 1000 / 60)), 0, 9, 1);
                 //CRITICAL
 
                 if (!writeIssueDate) {
@@ -487,7 +488,7 @@ public class Ticket {
                     return false;
                 }
                 try {
-                    firstUseDate = (int)(currentDate.getTime()/1000/60);
+                    firstUseDate = (int) (currentDate.getTime() / 1000 / 60);
                 } catch (Exception e) {
                     e.printStackTrace();
                     invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", "Unable to write the issue date in use()!");
@@ -517,7 +518,7 @@ public class Ticket {
                 boolean macValidNew;
 
                 try {
-                    firstUseDate = (int) parseDateFromByteArray(rawValidityDate).getTime() /1000 /60;
+                    firstUseDate = (int) parseDateFromByteArray(rawValidityDate).getTime() / 1000 / 60;
                 } catch (Exception e) {
                     e.printStackTrace();
                     invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", "Unable to write the issue date in use()!");
@@ -821,10 +822,10 @@ public class Ticket {
         return cardMAC.equals(macGenerated);
     }
 
-    private byte[] generateMAC(String diversifiedMacKey, int daysValid, int issueDate, int maxUsages, int initialCounter) throws GeneralSecurityException {
+    private byte[] generateMAC(String diversifiedMacKey, int seasonExpiry, int issueDate, int maxUsages, int initialCounter) throws GeneralSecurityException {
         // Generate HMAC which initially is HMAC("maxUsages||daysValid||initialCounter||issueDate")
         macAlgorithm.setKey(diversifiedMacKey.getBytes());
-        byte[] mac = macAlgorithm.generateMac((maxUsages + "||" + daysValid + "||" + initialCounter + "||" + issueDate).getBytes());
+        byte[] mac = macAlgorithm.generateMac((maxUsages + "||" + seasonExpiry + "||" + initialCounter + "||" + issueDate).getBytes());
         // Take only first 4 bytes.
         byte[] macGeneratedRaw = new byte[4];
         System.arraycopy(mac, 0, macGeneratedRaw, 0, 4);
