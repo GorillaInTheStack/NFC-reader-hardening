@@ -10,11 +10,9 @@ import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.Locale;
+
 
 /**
  * TODO:
@@ -131,7 +129,7 @@ public class Ticket {
         boolean checkApplicationTag = utils.readPages(4, 1, cardApplicationTag, 0);
 
         // Set information to show for the user
-        if (false && checkApplicationTag && applicationTag.equals(new String(cardApplicationTag))) {
+        if (checkApplicationTag && applicationTag.equals(new String(cardApplicationTag))) {
             infoToShow = "Ticket already issued!";
             return false;
 
@@ -290,6 +288,7 @@ public class Ticket {
             Utilities.log("INFO: Auth1 configured successfully in method issue()!", false);
 
 
+            //TODO
             // Setting Auth0 to 2bh to protect Auth1 and Key
             page42 = new BigInteger("2b000000", 16).toByteArray();
             auth0Written = utils.writePages(page42, 0, 42, 1);
@@ -356,7 +355,7 @@ public class Ticket {
         byte[] cardApplicationTag = new byte[4];
         boolean readSuccessful = utils.readPages(4, 1, cardApplicationTag, 0);
         if (!readSuccessful || !applicationTag.equals(new String(cardApplicationTag))) {
-            invalidateCard("ERROR: problems while reading tag in method use(). Re-issue the ticket.", "Ticket was not issued correctly or Card has expired!");
+            invalidateCard("ERROR: problems while reading tag in method use(). Re-issue the ticket.", "Problem reading data, if issue persists contact customer service!");
             return false;
         }
         Utilities.log("INFO: tag read Successful in method use()", false);
@@ -455,7 +454,6 @@ public class Ticket {
             invalidateCard("ERROR: problems while reading firstUseDate in use().", "Please Retry!");
             return false;
         } else {
-            //int issueDateExistence = byteArrayToInt(rawValidityDate);
 
             //Get card mac for first validation.
             String cardMAC = getCardMAC(14);
@@ -495,7 +493,7 @@ public class Ticket {
                 Utilities.log("INFO: firstUseDate was written successfully in use() firstUseDate: " + firstUseDate, false);
 
                 // Generate and write new MAC to only one page (4bytes).
-                byte[] cardMACFromCard = generateMAC(diversifiedMacKey, seasonExpiry, (int) firstUseDate, maxUsages, initialCounterValue, validityDays);
+                byte[] cardMACFromCard = generateMAC(diversifiedMacKey, seasonExpiry, firstUseDate, maxUsages, initialCounterValue, validityDays);
                 boolean checkMACWritten = utils.writePages(cardMACFromCard, 0, 14, 1);
                 if (!checkMACWritten) {
                     invalidateCard("ERROR: Was not able to update HMAC in use().", "Please Retry!");
@@ -516,7 +514,7 @@ public class Ticket {
                 boolean macValidNew;
 
                 try {
-                    firstUseDate = (int) byteArrayToInt(rawValidityDate);
+                    firstUseDate = byteArrayToInt(rawValidityDate);
                 } catch (Exception e) {
                     e.printStackTrace();
                     invalidateCard("ERROR: problems while reading firstUseDate as currentDate in use().", "Please Retry!");
@@ -527,7 +525,7 @@ public class Ticket {
 
                 // This is when issue date is already set.
                 if (cardMACNew != null) {
-                    macValidNew = checkMAC(diversifiedMacKey, seasonExpiry, (int) firstUseDate, maxUsages, initialCounterValue, cardMACNew, validityDays);
+                    macValidNew = checkMAC(diversifiedMacKey, seasonExpiry, firstUseDate, maxUsages, initialCounterValue, cardMACNew, validityDays);
                 } else {
                     invalidateCard("ERROR: problems while getting STORED MAC in card in use().", "Please Retry!");
                     return false;
@@ -549,7 +547,13 @@ public class Ticket {
 
         expiryTime = seasonExpiry;
 
-        if (!(usedRides - initialCounterValue < maxUsages) || currentTime > validityExpiryTime || currentTime > seasonExpiry) {
+        // No more available rides
+        if (!(usedRides - initialCounterValue < maxUsages)) {
+            invalidateCard("INFO: No more available rides.", "No more remaining rides. You can add extra.");
+            return false;
+        }
+
+        if (currentTime > validityExpiryTime || currentTime > seasonExpiry) {
             // Card expired.
             invalidateCard("INFO: Card has expired. Check if the values above make sense. Resetting...", "Your card has expired, please return card!");
             eraseTag();
@@ -674,6 +678,15 @@ public class Ticket {
         int ticketValidityDays = byteArrayToInt(rawTicketValidityDays);
         Utilities.log("INFO: read ticket validity successfully in addAdditional(). ticketValidityDays: " + ticketValidityDays, false);
 
+        int validityExpiryTime = getTimeAfter(firstUseDateInMinutes, ticketValidityDays);
+        int currentTime = (int) (new Date().getTime() / 1000 / 60);
+        if ((firstUseDateInMinutes > 0 && currentTime > validityExpiryTime) || currentTime > seasonExpiryDateInMinutes) {
+            // Card expired.
+            invalidateCard("INFO: Card has expired. Check if the values above make sense. Resetting...", "Your card has expired, please return card!");
+            eraseTag();
+            Utilities.log("INFO: Card has been reset.", false);
+            return;
+        }
 
         // read card MAC
         byte[] rawMac = new byte[4];
@@ -780,21 +793,6 @@ public class Ticket {
         boolean eraseTag = utils.writePages(intToByteArray(0), 0, 4, 1);
         if (!eraseTag) {
             Utilities.log("ERROR: Could not invalidate card correctly, Tag was not erased.", true);
-        }
-    }
-
-    // TODO validate methods, timestamp is 19 bytes
-    private String getCurrentTimeStamp() {
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss", Locale.getDefault());
-        return dateFormat.format(new Date());
-    }
-
-    private Date parseDateFromByteArray(byte[] date) throws Exception {
-        String s = new String(date);
-        try {
-            return new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss", Locale.getDefault()).parse(s);
-        } catch (ParseException e) {
-            throw new Exception(e);
         }
     }
 
