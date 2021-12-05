@@ -365,7 +365,7 @@ public class Ticket {
         byte[] cardUIDFull = new byte[8];
         boolean checkCardUID = utils.readPages(0, 2, cardUIDFull, 0);
         if (!checkCardUID) {
-            invalidateCard("ERROR: problems while reading UID in use().", "Unable to read UID!");
+            invalidateCard("ERROR: problems while reading UID in use().", "Please Retry!");
             return false;
         }
         byte[] cardUID = new byte[7];
@@ -379,7 +379,7 @@ public class Ticket {
         String diversifiedMacKey = createDiversifiedKey(new String(hmacKey), convertByteArrayToHex(cardUID));
 
         if (diversifiedAuthKey == null || diversifiedMacKey == null) {
-            invalidateCard("ERROR: problems while generating keys in use().", "Error generating keys!");
+            invalidateCard("ERROR: problems while generating keys in use().", "Please Retry!");
             return false;
         }
         Utilities.log("INFO: Keys generated successfully in method use()!", false);
@@ -387,7 +387,7 @@ public class Ticket {
         // Authenticate
         res = utils.authenticate(diversifiedAuthKey.getBytes());
         if (!res) {
-            invalidateCard("ERROR: problems while authenticating card in method use().", "Authentication failed!");
+            invalidateCard("ERROR: problems while authenticating card in method use().", "Please Retry!");
             return false;
         }
         Utilities.log("INFO: Authentication Successful in method use()", false);
@@ -396,7 +396,7 @@ public class Ticket {
         byte[] rawMaxNumUsages = new byte[4];
         boolean checkMaxUsages = utils.readPages(7, 1, rawMaxNumUsages, 0);
         if (!checkMaxUsages) {
-            invalidateCard("ERROR: problems while reading Max usages in use().", "Unable to get Max number of usages!");
+            invalidateCard("ERROR: problems while reading Max usages in use().", "Please Retry!");
             return false;
         }
         int maxUsages = byteArrayToInt(rawMaxNumUsages);
@@ -406,7 +406,7 @@ public class Ticket {
         byte[] rawSeasonExpiry = new byte[4];
         boolean checkSeasonExpiry = utils.readPages(8, 1, rawSeasonExpiry, 0);
         if (!checkSeasonExpiry) {
-            invalidateCard("ERROR: problems while reading rawSeasonExpiry in use().", "Unable to get rawSeasonExpiry in use()!");
+            invalidateCard("ERROR: problems while reading rawSeasonExpiry in use().", "Please Retry!");
             return false;
         }
         int seasonExpiry = byteArrayToInt(rawSeasonExpiry);
@@ -421,7 +421,7 @@ public class Ticket {
         twoByteCounter[2] = rawUsedRides[1];
         twoByteCounter[3] = rawUsedRides[0];
         if (!checkUsedRides) {
-            invalidateCard("ERROR: problems while reading usedRides in use().", "Unable to get usedRides in use()!");
+            invalidateCard("ERROR: problems while reading usedRides in use().", "Please Retry!");
             return false;
         }
         int usedRides = byteArrayToInt(twoByteCounter);
@@ -431,7 +431,7 @@ public class Ticket {
         byte[] rawInitialCounterValue = new byte[4];
         boolean checkInitialCounterValue = utils.readPages(21, 1, rawInitialCounterValue, 0);
         if (!checkInitialCounterValue) {
-            invalidateCard("ERROR: problems while reading InitialCounterValue in use().", "Unable to get InitialCounterValue in use()!");
+            invalidateCard("ERROR: problems while reading InitialCounterValue in use().", "Please Retry!");
             return false;
         }
         int initialCounterValue = byteArrayToInt(rawInitialCounterValue);
@@ -441,7 +441,7 @@ public class Ticket {
         byte[] rawValidityDays = new byte[4];
         boolean checkValidityDays = utils.readPages(10, 1, rawValidityDays, 0);
         if (!checkValidityDays) {
-            invalidateCard("ERROR: problems while reading validityDays in use().", "Unable to get Max number of usages!");
+            invalidateCard("ERROR: problems while reading validityDays in use().", "Please Retry!");
             return false;
         }
         int validityDays = byteArrayToInt(rawValidityDays);
@@ -452,7 +452,7 @@ public class Ticket {
         boolean checkIssueDate = utils.readPages(9, 1, rawValidityDate, 0);
         int firstUseDate;
         if (!checkIssueDate) {
-            invalidateCard("ERROR: problems while reading firstUseDate in use().", "Unable to get the issue date in use()!");
+            invalidateCard("ERROR: problems while reading firstUseDate in use().", "Please Retry!");
             return false;
         } else {
             //int issueDateExistence = byteArrayToInt(rawValidityDate);
@@ -468,12 +468,12 @@ public class Ticket {
                 if (cardMAC != null) {
                     macValid = checkMAC(diversifiedMacKey, seasonExpiry, 0, maxUsages, initialCounterValue, cardMAC, validityDays);
                 } else {
-                    invalidateCard("ERROR: problems while getting MAC for first time in card in use().", "Unable to get the MAC in card in use()!");
+                    invalidateCard("ERROR: problems while getting MAC for first time in card in use().", "Please Retry!");
                     return false;
                 }
 
                 if (!macValid) {
-                    invalidateCard("ERROR: problems while validating first MAC in card in use().", "Unable to validate the first MAC in card in use()!");
+                    invalidateCard("ERROR: problems while validating first MAC in card in use().", "Please return ticket!");
                     eraseTag();
                     return false;
                 }
@@ -486,7 +486,7 @@ public class Ticket {
                 boolean writeIssueDate = utils.writePages(intToByteArray(firstUseDate), 0, 9, 1);
                 //CRITICAL
                 if (!writeIssueDate) {
-                    invalidateCard("ERROR: problems while writing firstTimeDate as int in use(). currentDate: " + (currentDate.getTime() / 1000 / 60), "Unable to write the issue date in use()!");
+                    invalidateCard("ERROR: problems while writing firstTimeDate as int in use(). currentDate: " + (currentDate.getTime() / 1000 / 60), "Please Retry!");
                     eraseTag();
                     return false;
                 }
@@ -498,7 +498,7 @@ public class Ticket {
                 byte[] cardMACFromCard = generateMAC(diversifiedMacKey, seasonExpiry, (int) firstUseDate, maxUsages, initialCounterValue, validityDays);
                 boolean checkMACWritten = utils.writePages(cardMACFromCard, 0, 14, 1);
                 if (!checkMACWritten) {
-                    invalidateCard("ERROR: Was not able to update HMAC in use().", "Unable to update HMAC in use()!");
+                    invalidateCard("ERROR: Was not able to update HMAC in use().", "Please Retry!");
 //                    eraseTag(); not required anymore since the mac is one page
                     return false;
                 }
@@ -519,7 +519,7 @@ public class Ticket {
                     firstUseDate = (int) byteArrayToInt(rawValidityDate);
                 } catch (Exception e) {
                     e.printStackTrace();
-                    invalidateCard("ERROR: problems while reading firstUseDate as currentDate in use().", "Unable to write the issue date in use()!");
+                    invalidateCard("ERROR: problems while reading firstUseDate as currentDate in use().", "Please Retry!");
                     return false;
                 }
                 Utilities.log("INFO: firstUseDate read successfully in use() firstUseDate: " + firstUseDate, false);
@@ -529,12 +529,12 @@ public class Ticket {
                 if (cardMACNew != null) {
                     macValidNew = checkMAC(diversifiedMacKey, seasonExpiry, (int) firstUseDate, maxUsages, initialCounterValue, cardMACNew, validityDays);
                 } else {
-                    invalidateCard("ERROR: problems while getting STORED MAC in card in use().", "Unable to get the MAC in card in use()!");
+                    invalidateCard("ERROR: problems while getting STORED MAC in card in use().", "Please Retry!");
                     return false;
                 }
 
                 if (!macValidNew) {
-                    invalidateCard("ERROR: problems while validating the STORED MAC in card in use().", "Unable to validate the MAC in card in use()!");
+                    invalidateCard("ERROR: problems while validating the STORED MAC in card in use().", "Please return ticket!");
                     eraseTag();
                     return false;
                 }
@@ -551,7 +551,7 @@ public class Ticket {
 
         if (!(usedRides - initialCounterValue < maxUsages) || currentTime > validityExpiryTime || currentTime > seasonExpiry) {
             // Card expired.
-            invalidateCard("INFO: Card has expired. Check if the values above make sense. Resetting...", "Your card has expired in use()!");
+            invalidateCard("INFO: Card has expired. Check if the values above make sense. Resetting...", "Your card has expired, please return card!");
             eraseTag();
             // TODO: Reset auth params?
 
@@ -564,7 +564,7 @@ public class Ticket {
             byte[] incrementOne = new BigInteger("01000000", 16).toByteArray();
             boolean checkNewUsedRides = utils.writePages(incrementOne, 0, 41, 1);
             if (!checkNewUsedRides) {
-                invalidateCard("ERROR: Was not able to update usedRides in use().", "Unable increment usedRides in use()!");
+                invalidateCard("ERROR: Was not able to update usedRides in use().", "Please return ticket!");
                 eraseTag();
                 return false;
             }
@@ -577,7 +577,8 @@ public class Ticket {
         remainingUses = maxUsages - (usedRides - initialCounterValue);
 
 
-        infoToShow = "Use of card was successful!";
+        infoToShow = "Use of card was successful! remaining uses: " + remainingUses + " \nThe ticket is valid until : " + new Date(validityExpiryTime * 1000L * 60L).toLocaleString()
+                + " \nSeason ends on: " + new Date(seasonExpiry * 1000L * 60L).toLocaleString();
         isValid = true;
         return true;
     }
