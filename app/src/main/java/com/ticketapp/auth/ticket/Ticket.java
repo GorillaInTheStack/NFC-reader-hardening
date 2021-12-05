@@ -585,152 +585,149 @@ public class Ticket {
     /**
      * Add additional rides
      */
-//    public void addAdditional(int additionalRides) throws GeneralSecurityException {
-//
-//        // Check the application tag
-//        byte[] cardApplicationTag = new byte[4];
-//        boolean checkApplicationTag = utils.readPages(4, 1, cardApplicationTag, 0);
-//        if (!checkApplicationTag || !applicationTag.equals(new String(cardApplicationTag))) {
-//            infoToShow = "Unable to read application tag!";
-//            Utilities.log("ERROR: problems while reading tag in method addAdditional().", true);
-//            return;
-//        }
-//
-//        byte[] cardUIDFull = new byte[8];
-//        boolean checkCardUID = utils.readPages(0, 2, cardUIDFull, 0);
-//        if (!checkCardUID) {
-//            infoToShow = "Unable to read UID!";
-//            Utilities.log("ERROR: problems while reading UID in addAdditional().", true);
-//            return;
-//        }
-//        byte[] cardUID = new byte[7];
-//        // The UID is a 7 byte serial number located in first 3 bytes of page 0 and all of page 1
-//        System.arraycopy(Arrays.copyOfRange(cardUIDFull, 0, 3), 0, cardUID, 0, 3);
-//        System.arraycopy(Arrays.copyOfRange(cardUIDFull, 4, 8), 0, cardUID, 3, 4);
-//        Utilities.log("INFO: Card UID in addAdditional(). Card UID: " + convertByteArrayToHex(cardUID), false);
-//
-//        String diversifiedAuthKey = createDiversifiedKey(new String(authenticationKey), convertByteArrayToHex(cardUID));
-//        String diversifiedMacKey = createDiversifiedKey(new String(hmacKey), convertByteArrayToHex(cardUID));
-//
-//        if (diversifiedAuthKey == null || diversifiedMacKey == null) {
-//            infoToShow = "Error generating keys!";
-//            Utilities.log("ERROR: problems while generating keys in addAdditional().", true);
-//            return;
-//        }
-//        Utilities.log("INFO: Keys generated successfully in addAdditional()!", false);
-//
-//        // Authenticate
-//        boolean res;
-//        res = utils.authenticate(diversifiedAuthKey.getBytes());
-//        if (!res) {
-//            infoToShow = "Authentication failed";
-//            Utilities.log("Authentication failed in addAdditional()", true);
-//            return;
-//        }
-//        Utilities.log("INFO: Authentication successful in addAdditional()!", false);
-//
-//        // Get maximum number of usages.
-//        byte[] rawMaxNumUsages = new byte[4];
-//        boolean checkMaxUsages = utils.readPages(7, 1, rawMaxNumUsages, 0);
-//        if (!checkMaxUsages) {
-//            infoToShow = "Unable to get Max number of usages!";
-//            Utilities.log("ERROR: problems while reading Max usages in addAdditional().", true);
-//            return;
-//        }
-//        int maxUsages = byteArrayToInt(rawMaxNumUsages);
-//        Utilities.log("INFO: Max number of usages read successfully in addAdditional(). maxUsages: " + maxUsages, false);
-//
-//        // Get DaysValid from page 8.
-//        byte[] rawDaysValid = new byte[4];
-//        boolean checkDaysValid = utils.readPages(8, 1, rawDaysValid, 0);
-//        if (!checkDaysValid) {
-//            infoToShow = "Unable to get DaysValid in use()!";
-//            Utilities.log("ERROR: problems while reading DaysValid in addAdditional().", true);
-//            return;
-//        }
-//        int daysValid = byteArrayToInt(rawDaysValid);
-//        Utilities.log("INFO: DaysValid read successfully in addAdditional() DaysValid: " + daysValid, false);
-//
-//        // Get issueDate
-//        byte[] rawIssueDate = new byte[20];
-//        boolean checkIssueDate = utils.readPages(9, 5, rawIssueDate, 0);
-//        if (!checkIssueDate) {
-//            infoToShow = "Unable to get the issue date in addAdditional()!";
-//            Utilities.log("ERROR: problems while reading issueDate in addAdditional().", true);
-//            return;
-//        }
-//
-//        int issueDateExistence = byteArrayToInt(rawIssueDate);
-//        int issueDate;
-//        if (issueDateExistence == 0)
-//            issueDate = 0;
-//        else {
-//            try {
-//                issueDate = (int) parseDateFromByteArray(rawIssueDate).getTime();
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//                infoToShow = "Unable to parse the issue date in addAdditional()!";
-//                Utilities.log("ERROR: problems while parsing issueDate in addAdditional().", true);
-//                return;
-//            }
-//        }
-//        Utilities.log("INFO: issueDate read successfully in addAdditional(). issueDate: " + issueDate, false);
-//
-//        // read card MAC
-//        byte[] rawMac = new byte[4];
-//        boolean checkMac = utils.readPages(14, 1, rawMac, 0);
-//        if (!checkMac) {
-//            infoToShow = "Unable to get HMAC in use()!";
-//            Utilities.log("ERROR: problems while reading HMAC in addAdditional().", true);
-//            return;
-//        }
-//        String cardMac = convertByteArrayToHex(rawMac);
-//        Utilities.log("INFO: HMAC read successfully in addAdditional() HMAC: " + cardMac, false);
-//
-//        // Read initial counter value.
-//        byte[] rawInitialCounterValue = new byte[4];
-//        boolean checkInitialCounterValue = utils.readPages(21, 1, rawInitialCounterValue, 0);
-//        if (!checkInitialCounterValue) {
-//            infoToShow = "Unable to get InitialCounterValue!";
-//            Utilities.log("ERROR: problems while reading InitialCounterValue in addAdditional().", true);
-//            return;
-//        }
-//        int initialCounterValue = byteArrayToInt(rawInitialCounterValue);
-//        Utilities.log("INFO: InitialCounterValue read successfully in addAdditional() InitialCounterValue: " + initialCounterValue, false);
-//
-//
-//        boolean compareMac = checkMAC(diversifiedMacKey, daysValid, issueDate, maxUsages, initialCounterValue, cardMac);
-//        if (!compareMac) {
-//            infoToShow = "MACs don't match!";
-//            Utilities.log("ERROR: problems while comparing HMAC in addAdditional().", true);
-//            eraseTag();
-//            return;
-//        }
-//
-//        // write new number of uses
-//        boolean usesWritten = utils.writePages(intToByteArray(maxUsages + additionalRides), 0, 7, 1);
-//        if (!usesWritten) {
-//            infoToShow = "Unable to write  new number of uses!";
-//            Utilities.log("ERROR: problems while writing new number of uses in addAdditional().", true);
-//            eraseTag();
-//            return;
-//        }
-//        Utilities.log("INFO: Number of uses written successfully in method addAdditional()! Uses: " + (maxUsages + additionalRides), false);
-//
-//
-//        // Generate and write new MAC to only one page (4bytes).
-//        byte[] cardMACFromCard = generateMAC(diversifiedMacKey, daysValid, issueDate, maxUsages + additionalRides, initialCounterValue);
-//        boolean checkMACWritten = utils.writePages(cardMACFromCard, 0, 14, 1);
-//        if (!checkMACWritten) {
-//            infoToShow = "Unable to update HMAC in use()!";
-//            Utilities.log("ERROR: Was not able to update HMAC in use().", true);
-//            eraseTag();
-//            return;
-//        }
-//        infoToShow = "Added 5 rides successfully!";
-//        Utilities.log("INFO: Wrote new mac to card. New MAC: " + convertByteArrayToHex(cardMACFromCard), false);
-//
-//    }
+    public void addAdditional(int additionalRides) throws GeneralSecurityException {
+
+        // Check the application tag
+        byte[] cardApplicationTag = new byte[4];
+        boolean checkApplicationTag = utils.readPages(4, 1, cardApplicationTag, 0);
+        if (!checkApplicationTag || !applicationTag.equals(new String(cardApplicationTag))) {
+            infoToShow = "Unable to read application tag!";
+            Utilities.log("ERROR: problems while reading tag in method addAdditional().", true);
+            return;
+        }
+
+        byte[] cardUIDFull = new byte[8];
+        boolean checkCardUID = utils.readPages(0, 2, cardUIDFull, 0);
+        if (!checkCardUID) {
+            infoToShow = "Unable to read UID!";
+            Utilities.log("ERROR: problems while reading UID in addAdditional().", true);
+            return;
+        }
+        byte[] cardUID = new byte[7];
+        // The UID is a 7 byte serial number located in first 3 bytes of page 0 and all of page 1
+        System.arraycopy(Arrays.copyOfRange(cardUIDFull, 0, 3), 0, cardUID, 0, 3);
+        System.arraycopy(Arrays.copyOfRange(cardUIDFull, 4, 8), 0, cardUID, 3, 4);
+        Utilities.log("INFO: Card UID in addAdditional(). Card UID: " + convertByteArrayToHex(cardUID), false);
+
+        String diversifiedAuthKey = createDiversifiedKey(new String(authenticationKey), convertByteArrayToHex(cardUID));
+        String diversifiedMacKey = createDiversifiedKey(new String(hmacKey), convertByteArrayToHex(cardUID));
+
+        if (diversifiedAuthKey == null || diversifiedMacKey == null) {
+            infoToShow = "Error generating keys!";
+            Utilities.log("ERROR: problems while generating keys in addAdditional().", true);
+            return;
+        }
+        Utilities.log("INFO: Keys generated successfully in addAdditional()!", false);
+
+        // Authenticate
+        boolean res;
+        res = utils.authenticate(diversifiedAuthKey.getBytes());
+        if (!res) {
+            infoToShow = "Authentication failed";
+            Utilities.log("Authentication failed in addAdditional()", true);
+            return;
+        }
+        Utilities.log("INFO: Authentication successful in addAdditional()!", false);
+
+        // Get maximum number of usages.
+        byte[] rawMaxNumUsages = new byte[4];
+        boolean checkMaxUsages = utils.readPages(7, 1, rawMaxNumUsages, 0);
+        if (!checkMaxUsages) {
+            infoToShow = "Unable to get Max number of usages!";
+            Utilities.log("ERROR: problems while reading Max usages in addAdditional().", true);
+            return;
+        }
+        int maxUsages = byteArrayToInt(rawMaxNumUsages);
+        Utilities.log("INFO: Max number of usages read successfully in addAdditional(). maxUsages: " + maxUsages, false);
+
+        // Get season expiry date from page 8.
+        byte[] rawSeasonExpiryDate = new byte[4];
+        boolean checkSeasonExpiryDate = utils.readPages(8, 1, rawSeasonExpiryDate, 0);
+        if (!checkSeasonExpiryDate) {
+            infoToShow = "Unable to get season expiry date!";
+            Utilities.log("ERROR: problems while reading seasonExpiryDate in addAdditional().", true);
+            return;
+        }
+        int seasonExpiryDateInMinutes = byteArrayToInt(rawSeasonExpiryDate);
+        Utilities.log("INFO: Season expiry date read successfully in addAdditional() season expiry: " + seasonExpiryDateInMinutes, false);
+
+        // Get first use date
+        byte[] firstUseDate = new byte[4];
+        boolean checkFirstUseDate = utils.readPages(9, 1, firstUseDate, 0);
+        if (!checkFirstUseDate) {
+            infoToShow = "Unable to read first use date!";
+            Utilities.log("ERROR: problems while reading firstUseDate in addAdditional().", true);
+            return;
+        }
+        int firstUseDateInMinutes = byteArrayToInt(firstUseDate);
+        Utilities.log("INFO: first use date read successfully in addAdditional(). firstUseDate: " + firstUseDateInMinutes, false);
+
+        // Get ticket validity days after first use
+        byte[] rawTicketValidityDays = new byte[4];
+        boolean checkTicketValidityDays = utils.readPages(10, 1, rawTicketValidityDays, 0);
+        if (!checkTicketValidityDays) {
+            infoToShow = "Unable to read ticket validity days!";
+            Utilities.log("ERROR: problems while reading ticketValidityDays in addAdditional().", true);
+            return;
+        }
+        int ticketValidityDays = byteArrayToInt(rawTicketValidityDays);
+        Utilities.log("INFO: read ticket validity successfully in addAdditional(). ticketValidityDays: " + ticketValidityDays, false);
+
+
+        // read card MAC
+        byte[] rawMac = new byte[4];
+        boolean checkMac = utils.readPages(14, 1, rawMac, 0);
+        if (!checkMac) {
+            infoToShow = "Unable to get HMAC in use()!";
+            Utilities.log("ERROR: problems while reading HMAC in addAdditional().", true);
+            return;
+        }
+        String cardMac = convertByteArrayToHex(rawMac);
+        Utilities.log("INFO: HMAC read successfully in addAdditional() HMAC: " + cardMac, false);
+
+        // Read initial counter value.
+        byte[] rawInitialCounterValue = new byte[4];
+        boolean checkInitialCounterValue = utils.readPages(21, 1, rawInitialCounterValue, 0);
+        if (!checkInitialCounterValue) {
+            infoToShow = "Unable to get InitialCounterValue!";
+            Utilities.log("ERROR: problems while reading InitialCounterValue in addAdditional().", true);
+            return;
+        }
+        int initialCounterValue = byteArrayToInt(rawInitialCounterValue);
+        Utilities.log("INFO: InitialCounterValue read successfully in addAdditional() InitialCounterValue: " + initialCounterValue, false);
+
+
+        boolean compareMac = checkMAC(diversifiedMacKey, seasonExpiryDateInMinutes, firstUseDateInMinutes, maxUsages, initialCounterValue, cardMac, ticketValidityDays);
+        if (!compareMac) {
+            infoToShow = "MACs don't match!";
+            Utilities.log("ERROR: problems while comparing HMAC in addAdditional().", true);
+            eraseTag();
+            return;
+        }
+
+        // write new number of uses
+        boolean usesWritten = utils.writePages(intToByteArray(maxUsages + additionalRides), 0, 7, 1);
+        if (!usesWritten) {
+            infoToShow = "Unable to write  new number of uses!";
+            Utilities.log("ERROR: problems while writing new number of uses in addAdditional().", true);
+            return;
+        }
+        Utilities.log("INFO: Number of uses written successfully in method addAdditional()! Uses: " + (maxUsages + additionalRides), false);
+
+
+        // Generate and write new MAC to only one page (4bytes).
+        byte[] cardMACFromCard = generateMAC(diversifiedMacKey, seasonExpiryDateInMinutes, firstUseDateInMinutes, maxUsages + additionalRides, initialCounterValue, ticketValidityDays);
+        boolean checkMACWritten = utils.writePages(cardMACFromCard, 0, 14, 1);
+        if (!checkMACWritten) {
+            infoToShow = "Unable to update HMAC in use()!";
+            Utilities.log("ERROR: Was not able to update HMAC in use().", true);
+            eraseTag();
+            return;
+        }
+        infoToShow = "Added 5 rides successfully!";
+        Utilities.log("INFO: Wrote new mac to card. New MAC: " + convertByteArrayToHex(cardMACFromCard), false);
+
+    }
 
 
     /**
