@@ -320,8 +320,9 @@ public class Ticket {
           Page 4: program tag => applicationTag.
           Page 5-6: empty in case we want to add our own ID.
           Page 7: max number of uses => int maxUsages.
-          Page 8: number of days the ticket is valid from issue date => int daysValid.
-          Page 9-13: issue date
+          Page 8: season expiry date.
+          Page 9: first use DATE.
+          Page 10: validity DAYS after first use.
           Page 14-18: HMAC
           Page 19: empty
           Page 20: Used for nothind. (legacy).
@@ -390,14 +391,14 @@ public class Ticket {
         Utilities.log("INFO: Max number of usages read successfully in use() maxUsages: " + maxUsages, false);
 
         // Get DaysValid from page 8.
-        byte[] rawDaysValid = new byte[4];
-        boolean checkDaysValid = utils.readPages(8, 1, rawDaysValid, 0);
+        byte[] rawSeasonExpiry = new byte[4];
+        boolean checkDaysValid = utils.readPages(8, 1, rawSeasonExpiry, 0);
         if (!checkDaysValid) {
             invalidateCard("ERROR: problems while reading DaysValid in use().", "Unable to get DaysValid in use()!");
             return false;
         }
-        int daysValid = byteArrayToInt(rawDaysValid);
-        Utilities.log("INFO: DaysValid read successfully in use() DaysValid: " + daysValid, false);
+        int seasonExpiry = byteArrayToInt(rawSeasonExpiry);
+        Utilities.log("INFO: DaysValid read successfully in use() DaysValid: " + seasonExpiry, false);
 
         // Get the number of rides taken
         byte[] rawUsedRides = new byte[4];
@@ -426,25 +427,26 @@ public class Ticket {
         Utilities.log("INFO: InitialCounterValue read successfully in use() InitialCounterValue: " + initialCounterValue, false);
 
         // Set issue date if validating for the first time or get issue date if not.
-        byte[] rawIssueDate = new byte[20];
-        boolean checkIssueDate = utils.readPages(9, 5, rawIssueDate, 0);
-        Date issueDate;
+        byte[] rawValidityDate = new byte[4];
+        boolean checkIssueDate = utils.readPages(9, 1, rawValidityDate, 0);
+        int firstUseDate;
         if (!checkIssueDate) {
             invalidateCard("ERROR: problems while reading issueDate in use().", "Unable to get the issue date in use()!");
             return false;
         } else {
-            int issueDateExistence = byteArrayToInt(rawIssueDate);
+            int issueDateExistence = byteArrayToInt(rawValidityDate);
 
             //Get card mac for first validation.
             String cardMAC = getCardMAC(14);
             //Validate mac for the first time.
             boolean macValid;
 
+            // TODO: replace this check by (initial counter value ==  current counter value).
             if (issueDateExistence == 0) {
                 //Issue date does not exist
 
                 if (cardMAC != null) {
-                    macValid = checkMAC(diversifiedMacKey, daysValid, 0, maxUsages, initialCounterValue, cardMAC);
+                    macValid = checkMAC(diversifiedMacKey, seasonExpiry, 0, maxUsages, initialCounterValue, cardMAC);
                 } else {
                     invalidateCard("ERROR: problems while getting MAC in card in use().", "Unable to get the MAC in card in use()!");
                     return false;
@@ -456,14 +458,15 @@ public class Ticket {
                     return false;
                 }
 
-                String currentDate = getCurrentTimeStamp();
-                //System.out.println("Number of bytes in currentDate: "+currentDate.getBytes().length);
-                byte[] currentDateBytes = new byte[20];
-                System.arraycopy(currentDate.getBytes(), 0, currentDateBytes, 0, 19);
 
-                //write currentDate to pages 9-13.
+                Date currentDate = new Date();
+//                //System.out.println("Number of bytes in currentDate: "+currentDate.getBytes().length);
+//                byte[] currentDateBytes = new byte[20];
+//                System.arraycopy(currentDate.getBytes(), 0, currentDateBytes, 0, 19);
+
+                // TODO: store int in one page instead of the Date data structure.
                 //CRITICAL
-                boolean writeIssueDate = utils.writePages(currentDateBytes, 0, 9, 5);
+                boolean writeIssueDate = utils.writePages(intToByteArray((int)(currentDate.getTime()/1000/60)), 0, 9, 1);
                 //CRITICAL
 
                 if (!writeIssueDate) {
@@ -472,17 +475,17 @@ public class Ticket {
                     return false;
                 }
                 try {
-                    issueDate = parseDateFromByteArray(currentDateBytes);
+                    firstUseDate = (int)(currentDate.getTime()/1000/60);
                 } catch (Exception e) {
                     e.printStackTrace();
                     invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", "Unable to write the issue date in use()!");
                     eraseTag();
                     return false;
                 }
-                Utilities.log("INFO: Issue date was written successfully in use() issueDate: " + issueDate, false);
+                Utilities.log("INFO: Issue date was written successfully in use() issueDate: " + firstUseDate, false);
 
                 // Generate and write new MAC to only one page (4bytes).
-                byte[] cardMACFromCard = generateMAC(diversifiedMacKey, daysValid, (int) issueDate.getTime(), maxUsages, initialCounterValue);
+                byte[] cardMACFromCard = generateMAC(diversifiedMacKey, seasonExpiry, (int) firstUseDate, maxUsages, initialCounterValue);
                 boolean checkMACWritten = utils.writePages(cardMACFromCard, 0, 14, 1);
                 if (!checkMACWritten) {
                     invalidateCard("ERROR: Was not able to update HMAC in use().", "Unable to update HMAC in use()!");
@@ -502,19 +505,19 @@ public class Ticket {
                 boolean macValidNew;
 
                 try {
-                    issueDate = parseDateFromByteArray(rawIssueDate);
+                    firstUseDate = (int) parseDateFromByteArray(rawValidityDate).getTime() /1000 /60;
                 } catch (Exception e) {
                     e.printStackTrace();
                     invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", "Unable to write the issue date in use()!");
                     return false;
                 }
-                Utilities.log("INFO: Issue date read successfully in use() issueDate: " + issueDate, false);
+                Utilities.log("INFO: Issue date read successfully in use() issueDate: " + firstUseDate, false);
 
 
                 // check HMAC which initially is HMAC("maxUsages||daysValid||currentCounter||initialCounter||issueDate")
                 // This is when issue date is already set.
                 if (cardMACNew != null) {
-                    macValidNew = checkMAC(diversifiedMacKey, daysValid, (int) issueDate.getTime(), maxUsages, initialCounterValue, cardMACNew);
+                    macValidNew = checkMAC(diversifiedMacKey, seasonExpiry, (int) firstUseDate, maxUsages, initialCounterValue, cardMACNew);
                 } else {
                     invalidateCard("ERROR: problems while getting MAC in card in use().", "Unable to get the MAC in card in use()!");
                     return false;
@@ -529,13 +532,27 @@ public class Ticket {
             }
         }
 
-        // Calculate expiry date from issue date and daysValid
-        Date expiryDate = new Date(issueDate.getTime() + (daysValid * 86400000L));
-        Utilities.log("INFO: Calculated expiry date from issue date and daysValid expiryDate: " + expiryDate, false);
-        expiryTime = (int) (expiryDate.getTime() / 1000 / 60);
+        // TODO: read the value for validity check. 
+//        Date expiryDate = //new Date(issueDate.getTime() + (daysValid * 86400000L));
+//        Utilities.log("INFO: Calculated expiry date from issue date and daysValid expiryDate: " + expiryDate, false);
+//        expiryTime = (int) (expiryDate.getTime() / 1000 / 60);
+        // Get maximum number of usages.
+        byte[] rawValidityDays = new byte[4];
+        boolean checkValidityDays = utils.readPages(10, 1, rawValidityDays, 0);
+        if (!checkValidityDays) {
+            invalidateCard("ERROR: problems while reading Max usages in use().", "Unable to get Max number of usages!");
+            return false;
+        }
+        int validityDays = byteArrayToInt(rawValidityDays);
+        Utilities.log("INFO: Max number of usages read successfully in use() maxUsages: " + validityDays, false);
+        
+        //Now get time from validity days.
+        //TODO: use method getTimeAfter
+        int validityExpiryTime = getTimeAfter(firstUseDate, validityDays);
+        int currentTime = (int) (new Date().getTime() / 1000 / 60);
+        
 
-
-        if (!(usedRides - initialCounterValue < maxUsages) || !expiryDate.after(issueDate)) {
+        if (!(usedRides - initialCounterValue < maxUsages) || currentTime > validityExpiryTime || currentTime > seasonExpiry) {
             // Card expired.
             invalidateCard("INFO: Card has expired. Check if the values above make sense. Resetting...", "Your card has expired in use()!");
             eraseTag();
