@@ -518,7 +518,7 @@ public class Ticket {
                 boolean macValidNew;
 
                 try {
-                    firstUseDate = (int) parseDateFromByteArray(rawValidityDate).getTime() / 1000 / 60;
+                    firstUseDate = (int) byteArrayToInt(rawValidityDate);
                 } catch (Exception e) {
                     e.printStackTrace();
                     invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", "Unable to write the issue date in use()!");
