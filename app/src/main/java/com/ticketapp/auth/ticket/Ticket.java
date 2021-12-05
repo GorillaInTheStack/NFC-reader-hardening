@@ -544,7 +544,6 @@ public class Ticket {
             }
         }
 
-        // TODO: read the value for validity check.
 //        Date expiryDate = //new Date(issueDate.getTime() + (daysValid * 86400000L));
 //        Utilities.log("INFO: Calculated expiry date from issue date and daysValid expiryDate: " + expiryDate, false);
 //        expiryTime = (int) (expiryDate.getTime() / 1000 / 60);
