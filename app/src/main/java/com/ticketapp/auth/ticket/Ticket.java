@@ -405,13 +405,13 @@ public class Ticket {
 
         // Get DaysValid from page 8.
         byte[] rawSeasonExpiry = new byte[4];
-        boolean checkDaysValid = utils.readPages(8, 1, rawSeasonExpiry, 0);
-        if (!checkDaysValid) {
-            invalidateCard("ERROR: problems while reading DaysValid in use().", "Unable to get DaysValid in use()!");
+        boolean checkSeasonExpiry = utils.readPages(8, 1, rawSeasonExpiry, 0);
+        if (!checkSeasonExpiry) {
+            invalidateCard("ERROR: problems while reading rawSeasonExpiry in use().", "Unable to get rawSeasonExpiry in use()!");
             return false;
         }
         int seasonExpiry = byteArrayToInt(rawSeasonExpiry);
-        Utilities.log("INFO: DaysValid read successfully in use() DaysValid: " + seasonExpiry, false);
+        Utilities.log("INFO: rawSeasonExpiry read successfully in use() rawSeasonExpiry: " + seasonExpiry, false);
 
         // Get the number of rides taken
         byte[] rawUsedRides = new byte[4];
@@ -447,7 +447,7 @@ public class Ticket {
             invalidateCard("ERROR: problems while reading issueDate in use().", "Unable to get the issue date in use()!");
             return false;
         } else {
-            int issueDateExistence = byteArrayToInt(rawValidityDate);
+            //int issueDateExistence = byteArrayToInt(rawValidityDate);
 
             //Get card mac for first validation.
             String cardMAC = getCardMAC(14);
@@ -455,13 +455,13 @@ public class Ticket {
             boolean macValid;
 
             // TODO: replace this check by (initial counter value ==  current counter value).
-            if (issueDateExistence == 0) {
+            if (usedRides == initialCounterValue) {
                 //Issue date does not exist
 
                 if (cardMAC != null) {
                     macValid = checkMAC(diversifiedMacKey, seasonExpiry, 0, maxUsages, initialCounterValue, cardMAC);
                 } else {
-                    invalidateCard("ERROR: problems while getting MAC in card in use().", "Unable to get the MAC in card in use()!");
+                    invalidateCard("ERROR: problems while getting MAC for first time in card in use().", "Unable to get the MAC in card in use()!");
                     return false;
                 }
 
@@ -532,12 +532,12 @@ public class Ticket {
                 if (cardMACNew != null) {
                     macValidNew = checkMAC(diversifiedMacKey, seasonExpiry, (int) firstUseDate, maxUsages, initialCounterValue, cardMACNew);
                 } else {
-                    invalidateCard("ERROR: problems while getting MAC in card in use().", "Unable to get the MAC in card in use()!");
+                    invalidateCard("ERROR: problems while getting STORED MAC in card in use().", "Unable to get the MAC in card in use()!");
                     return false;
                 }
 
                 if (!macValidNew) {
-                    invalidateCard("ERROR: problems while validating the MAC in card in use().", "Unable to validate the MAC in card in use()!");
+                    invalidateCard("ERROR: problems while validating the STORED MAC in card in use().", "Unable to validate the MAC in card in use()!");
                     eraseTag();
                     return false;
                 }
@@ -563,6 +563,7 @@ public class Ticket {
         int validityExpiryTime = getTimeAfter(firstUseDate, validityDays);
         int currentTime = (int) (new Date().getTime() / 1000 / 60);
 
+        expiryTime = seasonExpiry;
 
         if (!(usedRides - initialCounterValue < maxUsages) || currentTime > validityExpiryTime || currentTime > seasonExpiry) {
             // Card expired.
