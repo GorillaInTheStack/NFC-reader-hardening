@@ -426,8 +426,7 @@ public class Ticket {
             return false;
         }
         int usedRides = byteArrayToInt(twoByteCounter);
-        Utilities.log("INFO: read current coun ter value successfully Counter: " + usedRides +
-                " Original counter: ", false);
+        Utilities.log("INFO: read current coun ter value successfully Counter: " + usedRides, false);
 
         // We will use page 21 for initial counter value.
         byte[] rawInitialCounterValue = new byte[4];
@@ -444,7 +443,7 @@ public class Ticket {
         boolean checkIssueDate = utils.readPages(9, 1, rawValidityDate, 0);
         int firstUseDate;
         if (!checkIssueDate) {
-            invalidateCard("ERROR: problems while reading issueDate in use().", "Unable to get the issue date in use()!");
+            invalidateCard("ERROR: problems while reading firstUseDate in use().", "Unable to get the issue date in use()!");
             return false;
         } else {
             //int issueDateExistence = byteArrayToInt(rawValidityDate);
@@ -454,7 +453,6 @@ public class Ticket {
             //Validate mac for the first time.
             boolean macValid;
 
-            // TODO: replace this check by (initial counter value ==  current counter value).
             if (usedRides == initialCounterValue) {
                 //Issue date does not exist
 
@@ -477,13 +475,12 @@ public class Ticket {
 //                byte[] currentDateBytes = new byte[20];
 //                System.arraycopy(currentDate.getBytes(), 0, currentDateBytes, 0, 19);
 
-                // TODO: store int in one page instead of the Date data structure.
                 //CRITICAL
                 boolean writeIssueDate = utils.writePages(intToByteArray((int) (currentDate.getTime() / 1000 / 60)), 0, 9, 1);
                 //CRITICAL
 
                 if (!writeIssueDate) {
-                    invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). currentDate: " + currentDate, "Unable to write the issue date in use()!");
+                    invalidateCard("ERROR: problems while writing firstTimeDate as int in use(). currentDate: " + (currentDate.getTime() / 1000 / 60), "Unable to write the issue date in use()!");
                     eraseTag();
                     return false;
                 }
@@ -491,17 +488,18 @@ public class Ticket {
                     firstUseDate = (int) (currentDate.getTime() / 1000 / 60);
                 } catch (Exception e) {
                     e.printStackTrace();
-                    invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", "Unable to write the issue date in use()!");
-                    eraseTag();
+                    invalidateCard("ERROR: problems while writing firstTimeDate as int in use().", "Unable to write the issue date in use() RETRY!");
+                    //eraseTag();
                     return false;
                 }
-                Utilities.log("INFO: Issue date was written successfully in use() issueDate: " + firstUseDate, false);
+                Utilities.log("INFO: firstUseDate was written successfully in use() firstUseDate: " + firstUseDate, false);
 
                 // Generate and write new MAC to only one page (4bytes).
                 byte[] cardMACFromCard = generateMAC(diversifiedMacKey, seasonExpiry, (int) firstUseDate, maxUsages, initialCounterValue);
                 boolean checkMACWritten = utils.writePages(cardMACFromCard, 0, 14, 1);
                 if (!checkMACWritten) {
                     invalidateCard("ERROR: Was not able to update HMAC in use().", "Unable to update HMAC in use()!");
+                    eraseTag();
                     return false;
                 }
                 Utilities.log("INFO: Wrote new mac to card. New MAC: " + convertByteArrayToHex(cardMACFromCard), false);
@@ -521,10 +519,10 @@ public class Ticket {
                     firstUseDate = (int) byteArrayToInt(rawValidityDate);
                 } catch (Exception e) {
                     e.printStackTrace();
-                    invalidateCard("ERROR: problems while writing issueDate as currentDate in use(). Will try to delete Tag to reissue. ", "Unable to write the issue date in use()!");
+                    invalidateCard("ERROR: problems while reading firstUseDate as currentDate in use().", "Unable to write the issue date in use()!");
                     return false;
                 }
-                Utilities.log("INFO: Issue date read successfully in use() issueDate: " + firstUseDate, false);
+                Utilities.log("INFO: firstUseDate read successfully in use() firstUseDate: " + firstUseDate, false);
 
 
                 // check HMAC which initially is HMAC("maxUsages||daysValid||currentCounter||initialCounter||issueDate")
@@ -552,14 +550,13 @@ public class Ticket {
         byte[] rawValidityDays = new byte[4];
         boolean checkValidityDays = utils.readPages(10, 1, rawValidityDays, 0);
         if (!checkValidityDays) {
-            invalidateCard("ERROR: problems while reading Max usages in use().", "Unable to get Max number of usages!");
+            invalidateCard("ERROR: problems while reading validityDays in use().", "Unable to get Max number of usages!");
             return false;
         }
         int validityDays = byteArrayToInt(rawValidityDays);
-        Utilities.log("INFO: Max number of usages read successfully in use() maxUsages: " + validityDays, false);
+        Utilities.log("INFO: Validity days read successfully in use() validityDays: " + validityDays, false);
 
         //Now get time from validity days.
-        //TODO: use method getTimeAfter
         int validityExpiryTime = getTimeAfter(firstUseDate, validityDays);
         int currentTime = (int) (new Date().getTime() / 1000 / 60);
 
