@@ -288,9 +288,8 @@ public class Ticket {
             Utilities.log("INFO: Auth1 configured successfully in method issue()!", false);
 
 
-            //TODO
-            // Setting Auth0 to 2bh to protect Auth1 and Key
-            page42 = new BigInteger("2b000000", 16).toByteArray();
+            // Setting Auth0 to 2bh to protect Auth1 and Key (initially), 7h to protect everything starting page 7 to key
+            page42 = new BigInteger("07000000", 16).toByteArray();
             auth0Written = utils.writePages(page42, 0, 42, 1);
             if (!auth0Written) {
                 infoToShow = "Failed to configure Auth0!";
@@ -424,7 +423,7 @@ public class Ticket {
             return false;
         }
         int usedRides = byteArrayToInt(twoByteCounter);
-        Utilities.log("INFO: read current coun ter value successfully Counter: " + usedRides, false);
+        Utilities.log("INFO: read current counter value successfully Counter: " + usedRides, false);
 
         // We will use page 21 for initial counter value.
         byte[] rawInitialCounterValue = new byte[4];
@@ -544,6 +543,8 @@ public class Ticket {
         //Now get time from validity days.
         int validityExpiryTime = getTimeAfter(firstUseDate, validityDays);
         int currentTime = (int) (new Date().getTime() / 1000 / 60);
+        // TODO you can set this to test validityExpiryTime
+//         validityExpiryTime = currentTime -2;
 
         expiryTime = seasonExpiry;
 
@@ -557,7 +558,6 @@ public class Ticket {
             // Card expired.
             invalidateCard("INFO: Card has expired. Check if the values above make sense. Resetting...", "Your card has expired, please return card!");
             eraseTag();
-            // TODO: Reset auth params?
 
             Utilities.log("INFO: Card has been reset.", false);
             return false;
