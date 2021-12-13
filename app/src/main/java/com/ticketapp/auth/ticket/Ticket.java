@@ -109,8 +109,8 @@ public class Ticket {
           Page 8: date after which the ticket can't be used,  season expiry date in minutes.
           Page 9: date of the first use in minutes
           Page 10: 1 day, ticket validity after first use
-          Page 14: HMAC
-          Page 15-20: empty
+          Page 14: HMAC from issue.
+          Page 15: HMAC from use.
           Page 21: counter initial value.
 
           Page 39:
@@ -129,7 +129,7 @@ public class Ticket {
         boolean checkApplicationTag = utils.readPages(4, 1, cardApplicationTag, 0);
 
         // Set information to show for the user
-        if (checkApplicationTag && applicationTag.equals(new String(cardApplicationTag))) {
+        if (false && checkApplicationTag && applicationTag.equals(new String(cardApplicationTag))) {
             infoToShow = "Ticket already issued!";
             return false;
 
@@ -334,8 +334,8 @@ public class Ticket {
           Page 8: season expiry date.
           Page 9: first use DATE.
           Page 10: validity DAYS after first use.
-          Page 14: HMAC
-          Page 15-20: empty
+          Page 14: HMAC from issue.
+          Page 15: HMAC from use.
           Page 21: counter initial value.
 
           Page 39:
@@ -493,7 +493,7 @@ public class Ticket {
 
                 // Generate and write new MAC to only one page (4bytes).
                 byte[] cardMACFromCard = generateMAC(diversifiedMacKey, seasonExpiry, firstUseDate, maxUsages, initialCounterValue, validityDays);
-                boolean checkMACWritten = utils.writePages(cardMACFromCard, 0, 14, 1);
+                boolean checkMACWritten = utils.writePages(cardMACFromCard, 0, 15, 1);
                 if (!checkMACWritten) {
                     invalidateCard("ERROR: Was not able to update HMAC in use().", "Please Retry!");
 //                    eraseTag(); not required anymore since the mac is one page
@@ -507,7 +507,7 @@ public class Ticket {
                 // Check MAC
 
                 //Get card mac for validation.
-                String cardMACNew = getCardMAC(14);
+                String cardMACNew = getCardMAC(15);
                 //Validate mac.
 
                 boolean macValidNew;
@@ -543,8 +543,9 @@ public class Ticket {
         //Now get time from validity days.
         int validityExpiryTime = getTimeAfter(firstUseDate, validityDays);
         int currentTime = (int) (new Date().getTime() / 1000 / 60);
-        // TODO you can set this to test validityExpiryTime
+        // you can set this to test validityExpiryTime
 //         validityExpiryTime = currentTime -2;
+//         validityExpiryTime = currentTime +62;
 
         expiryTime = seasonExpiry;
 
@@ -580,9 +581,13 @@ public class Ticket {
         // Check if card still valid.
         remainingUses = maxUsages - (usedRides - initialCounterValue);
 
+        //Date validityExpiryDate = new Date(validityExpiryTime * 1000L * 60L);
+        long currentHours = new Date().getTime() / 1000L / 60L / 60L;
+        long validityHours = validityExpiryTime / 60L;
 
-        infoToShow = "Use of card was successful! remaining uses: " + remainingUses + " \nThe ticket is valid until : " + new Date(validityExpiryTime * 1000L * 60L).toLocaleString()
-                + " \nSeason ends on: " + new Date(seasonExpiry * 1000L * 60L).toLocaleString();
+
+        infoToShow = "Use of card was successful! remaining uses: " + remainingUses + " \nTicket validity expires in : " + (validityHours-currentHours)
+                + " Hours "; //\nSeason ends on: " + new Date(seasonExpiry * 1000L * 60L).toLocaleString();
         isValid = true;
         return true;
     }
@@ -680,12 +685,31 @@ public class Ticket {
 
         int validityExpiryTime = getTimeAfter(firstUseDateInMinutes, ticketValidityDays);
         int currentTime = (int) (new Date().getTime() / 1000 / 60);
-        if ((firstUseDateInMinutes > 0 && currentTime > validityExpiryTime) || currentTime > seasonExpiryDateInMinutes) {
+        // you can set this to test validityExpiryTime
+         validityExpiryTime = currentTime -2;
+        if (currentTime > seasonExpiryDateInMinutes) {
             // Card expired.
             invalidateCard("INFO: Card has expired. Check if the values above make sense. Resetting...", "Your card has expired, please return card!");
             eraseTag();
             Utilities.log("INFO: Card has been reset.", false);
             return;
+        }
+
+        // if card is invalid from the validity date, write a new one.
+        if((firstUseDateInMinutes > 0 && currentTime > validityExpiryTime)){
+            Date currentDate = new Date();
+            int firstUseDateToWrite = (int) (currentDate.getTime() / 1000 / 60);
+
+            //CRITICAL
+            boolean writeUseDate = utils.writePages(intToByteArray(firstUseDateToWrite), 0, 9, 1);
+            //CRITICAL
+            if (!writeUseDate) {
+                invalidateCard("ERROR: problems while writing firstTimeDate as int in addAdditional(). currentDate: " + (currentDate.getTime() / 1000 / 60), "Please Retry!");
+                eraseTag();
+                return;
+            }
+            Utilities.log("INFO: Created and wrote new first use Date for expired card in addAdditional", false);
+            firstUseDateInMinutes = firstUseDateToWrite; // So that the HMAC doesn't fail.
         }
 
         // read card MAC
@@ -710,9 +734,12 @@ public class Ticket {
         int initialCounterValue = byteArrayToInt(rawInitialCounterValue);
         Utilities.log("INFO: InitialCounterValue read successfully in addAdditional() InitialCounterValue: " + initialCounterValue, false);
 
+        String cardMACNew = getCardMAC(15);
 
-        boolean compareMac = checkMAC(diversifiedMacKey, seasonExpiryDateInMinutes, firstUseDateInMinutes, maxUsages, initialCounterValue, cardMac, ticketValidityDays);
-        if (!compareMac) {
+        boolean compareMacFromUse = checkMAC(diversifiedMacKey, seasonExpiryDateInMinutes, firstUseDateInMinutes, maxUsages, initialCounterValue, cardMACNew, ticketValidityDays);
+        boolean compareMacFromIssue = checkMAC(diversifiedMacKey, seasonExpiryDateInMinutes, firstUseDateInMinutes, maxUsages, initialCounterValue, cardMac, ticketValidityDays);
+        // If both evaluate to false then the mac has been tampered. If at least one is true it should be ok.
+        if (!compareMacFromIssue && !compareMacFromUse) {
             infoToShow = "MACs don't match!";
             Utilities.log("ERROR: problems while comparing HMAC in addAdditional().", true);
             eraseTag();
@@ -731,10 +758,11 @@ public class Ticket {
 
         // Generate and write new MAC to only one page (4bytes).
         byte[] cardMACFromCard = generateMAC(diversifiedMacKey, seasonExpiryDateInMinutes, firstUseDateInMinutes, maxUsages + additionalRides, initialCounterValue, ticketValidityDays);
-        boolean checkMACWritten = utils.writePages(cardMACFromCard, 0, 14, 1);
-        if (!checkMACWritten) {
+        boolean checkMACWritten = utils.writePages(cardMACFromCard, 0, 15, 1);
+        boolean checkMACWritten1 = utils.writePages(cardMACFromCard, 0, 14, 1);
+        if (!checkMACWritten || !checkMACWritten1) {
             infoToShow = "Unable to update HMAC in use()!";
-            Utilities.log("ERROR: Was not able to update HMAC in use().", true);
+            Utilities.log("ERROR: Was not able to update HMAC in addAdditional().", true);
             eraseTag();
             return;
         }
