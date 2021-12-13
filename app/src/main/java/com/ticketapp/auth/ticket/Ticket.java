@@ -129,7 +129,7 @@ public class Ticket {
         boolean checkApplicationTag = utils.readPages(4, 1, cardApplicationTag, 0);
 
         // Set information to show for the user
-        if (false && checkApplicationTag && applicationTag.equals(new String(cardApplicationTag))) {
+        if (checkApplicationTag && applicationTag.equals(new String(cardApplicationTag))) {
             infoToShow = "Ticket already issued!";
             return false;
 
