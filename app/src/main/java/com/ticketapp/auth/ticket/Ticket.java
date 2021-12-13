@@ -686,7 +686,7 @@ public class Ticket {
         int validityExpiryTime = getTimeAfter(firstUseDateInMinutes, ticketValidityDays);
         int currentTime = (int) (new Date().getTime() / 1000 / 60);
         // you can set this to test validityExpiryTime
-         validityExpiryTime = currentTime -2;
+//         validityExpiryTime = currentTime -2;
         if (currentTime > seasonExpiryDateInMinutes) {
             // Card expired.
             invalidateCard("INFO: Card has expired. Check if the values above make sense. Resetting...", "Your card has expired, please return card!");
