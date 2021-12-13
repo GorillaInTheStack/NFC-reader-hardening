@@ -10,6 +10,7 @@ import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.text.DecimalFormat;
 import java.util.Arrays;
 import java.util.Date;
 
@@ -484,7 +485,7 @@ public class Ticket {
                 //CRITICAL
                 if (!writeIssueDate) {
                     invalidateCard("ERROR: problems while writing firstTimeDate as int in use(). currentDate: " + (currentDate.getTime() / 1000 / 60), "Please Retry!");
-                    eraseTag();
+                    eraseTag(); //TODO should be removed
                     return false;
                 }
 
@@ -555,7 +556,7 @@ public class Ticket {
             return false;
         }
 
-        if (currentTime > validityExpiryTime || currentTime > seasonExpiry) {
+        if (currentTime > validityExpiryTime || currentTime > seasonExpiry) { // TODO check is different now
             // Card expired.
             invalidateCard("INFO: Card has expired. Check if the values above make sense. Resetting...", "Your card has expired, please return card!");
             eraseTag();
@@ -570,7 +571,7 @@ public class Ticket {
             boolean checkNewUsedRides = utils.writePages(incrementOne, 0, 41, 1);
             if (!checkNewUsedRides) {
                 invalidateCard("ERROR: Was not able to update usedRides in use().", "Please return ticket!");
-                eraseTag();
+                eraseTag(); //TODO shouldn't erase
                 return false;
             }
             Utilities.log("INFO: writing to counter was successful!", false);
@@ -582,11 +583,11 @@ public class Ticket {
         remainingUses = maxUsages - (usedRides - initialCounterValue);
 
         //Date validityExpiryDate = new Date(validityExpiryTime * 1000L * 60L);
-        long currentHours = new Date().getTime() / 1000L / 60L / 60L;
-        long validityHours = validityExpiryTime / 60L;
+        double currentHours = new Date().getTime() / 1000d / 60d / 60d;
+        double validityHours = validityExpiryTime / 60d;
 
 
-        infoToShow = "Use of card was successful! remaining uses: " + remainingUses + " \nTicket validity expires in : " + (validityHours-currentHours)
+        infoToShow = "Use of card was successful! remaining uses: " + remainingUses + " \nTicket validity expires in : " + new DecimalFormat("#.00").format((validityHours-currentHours))
                 + " Hours "; //\nSeason ends on: " + new Date(seasonExpiry * 1000L * 60L).toLocaleString();
         isValid = true;
         return true;
@@ -705,7 +706,7 @@ public class Ticket {
             //CRITICAL
             if (!writeUseDate) {
                 invalidateCard("ERROR: problems while writing firstTimeDate as int in addAdditional(). currentDate: " + (currentDate.getTime() / 1000 / 60), "Please Retry!");
-                eraseTag();
+                eraseTag(); // TODO should tag be erased?
                 return;
             }
             Utilities.log("INFO: Created and wrote new first use Date for expired card in addAdditional", false);
