@@ -13,6 +13,7 @@ import java.security.NoSuchAlgorithmException;
 import java.text.DecimalFormat;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Locale;
 
 
 /**
@@ -583,12 +584,12 @@ public class Ticket {
         remainingUses = maxUsages - (usedRides - initialCounterValue);
 
         //Date validityExpiryDate = new Date(validityExpiryTime * 1000L * 60L);
-        double currentHours = new Date().getTime() / 1000d / 60d / 60d;
-        double validityHours = validityExpiryTime / 60d;
+        long currentHours = new Date().getTime() / 1000 / 60;
+        long remainingHours = (long) validityExpiryTime - currentHours;
+        String remainingTime = String.format(Locale.getDefault(), "%d hours and %02d minutes", remainingHours / 60, remainingHours % 60);
 
 
-        infoToShow = "Use of card was successful! remaining uses: " + remainingUses + " \nTicket validity expires in : " + new DecimalFormat("#.00").format((validityHours - currentHours))
-                + " Hours "; //\nSeason ends on: " + new Date(seasonExpiry * 1000L * 60L).toLocaleString();
+        infoToShow = "Use of card was successful! remaining uses: " + remainingUses + " \nTicket validity expires in :  " + remainingTime; //\nSeason ends on: " + new Date(seasonExpiry * 1000L * 60L).toLocaleString();
         isValid = true;
         return true;
     }
