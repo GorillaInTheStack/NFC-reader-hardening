@@ -279,7 +279,7 @@ public class Ticket {
             }
             Utilities.log("INFO: Auth Key set successfully in method issue()!", false);
 
-            // Setting Auth1 to 0h restrict read and write
+            // Setting Auth1 to 0h to restrict read and write
             boolean auth1Written = utils.writePages(intToByteArray(0), 0, 43, 1);
             if (!auth1Written) {
                 infoToShow = "Failed to configure Auth1!";
@@ -455,16 +455,26 @@ public class Ticket {
             return false;
         } else {
 
-            //Get card mac for first validation.
-            String cardMAC = getCardMAC(14);
-            //Validate mac for the first time.
-            boolean macValid;
 
+            try {
+                firstUseDate = byteArrayToInt(rawValidityDate);
+            } catch (Exception e) {
+                e.printStackTrace();
+                invalidateCard("ERROR: problems while reading firstUseDate as currentDate in use().", "Please Retry!");
+                return false;
+            }
+            Utilities.log("INFO: firstUseDate read successfully in use() firstUseDate: " + firstUseDate, false);
+
+            //First use
             if (usedRides == initialCounterValue) {
-                //Issue date does not exist
+
+                //Get card mac for first validation.
+                String cardMAC = getCardMAC(14);
+                //Validate mac for the first time.
+                boolean macValid;
 
                 if (cardMAC != null) {
-                    macValid = checkMAC(diversifiedMacKey, seasonExpiry, 0, maxUsages, initialCounterValue, cardMAC, validityDays);
+                    macValid = checkMAC(diversifiedMacKey, seasonExpiry, firstUseDate, maxUsages, initialCounterValue, cardMAC, validityDays);
                 } else {
                     invalidateCard("ERROR: problems while getting MAC for first time in card in use().", "Please Retry!");
                     return false;
@@ -480,12 +490,9 @@ public class Ticket {
                 Date currentDate = new Date();
                 firstUseDate = (int) (currentDate.getTime() / 1000 / 60);
 
-                //CRITICAL
                 boolean writeIssueDate = utils.writePages(intToByteArray(firstUseDate), 0, 9, 1);
-                //CRITICAL
                 if (!writeIssueDate) {
                     invalidateCard("ERROR: problems while writing firstTimeDate as int in use(). currentDate: " + (currentDate.getTime() / 1000 / 60), "Please Retry!");
-                    eraseTag(); //TODO should be removed
                     return false;
                 }
 
@@ -497,7 +504,6 @@ public class Ticket {
                 boolean checkMACWritten = utils.writePages(cardMACFromCard, 0, 15, 1);
                 if (!checkMACWritten) {
                     invalidateCard("ERROR: Was not able to update HMAC in use().", "Please Retry!");
-//                    eraseTag(); not required anymore since the mac is one page
                     return false;
                 }
                 Utilities.log("INFO: Wrote new mac to card. New MAC: " + convertByteArrayToHex(cardMACFromCard), false);
@@ -512,16 +518,6 @@ public class Ticket {
                 //Validate mac.
 
                 boolean macValidNew;
-
-                try {
-                    firstUseDate = byteArrayToInt(rawValidityDate);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    invalidateCard("ERROR: problems while reading firstUseDate as currentDate in use().", "Please Retry!");
-                    return false;
-                }
-                Utilities.log("INFO: firstUseDate read successfully in use() firstUseDate: " + firstUseDate, false);
-
 
                 // This is when issue date is already set.
                 if (cardMACNew != null) {
@@ -556,11 +552,16 @@ public class Ticket {
             return false;
         }
 
-        if (currentTime > validityExpiryTime || currentTime > seasonExpiry) { // TODO check is different now
-            // Card expired.
+        // Card usage expired.
+        if (currentTime > validityExpiryTime) {
+            invalidateCard("INFO: Card has expired.", "Your card has expired, you can add additional rides!");
+            return false;
+        }
+
+        // Season expired.
+        if (currentTime > seasonExpiry) {
             invalidateCard("INFO: Card has expired. Check if the values above make sense. Resetting...", "Your card has expired, please return card!");
             eraseTag();
-
             Utilities.log("INFO: Card has been reset.", false);
             return false;
         } else {
@@ -571,7 +572,6 @@ public class Ticket {
             boolean checkNewUsedRides = utils.writePages(incrementOne, 0, 41, 1);
             if (!checkNewUsedRides) {
                 invalidateCard("ERROR: Was not able to update usedRides in use().", "Please return ticket!");
-                eraseTag(); //TODO shouldn't erase
                 return false;
             }
             Utilities.log("INFO: writing to counter was successful!", false);
@@ -587,7 +587,7 @@ public class Ticket {
         double validityHours = validityExpiryTime / 60d;
 
 
-        infoToShow = "Use of card was successful! remaining uses: " + remainingUses + " \nTicket validity expires in : " + new DecimalFormat("#.00").format((validityHours-currentHours))
+        infoToShow = "Use of card was successful! remaining uses: " + remainingUses + " \nTicket validity expires in : " + new DecimalFormat("#.00").format((validityHours - currentHours))
                 + " Hours "; //\nSeason ends on: " + new Date(seasonExpiry * 1000L * 60L).toLocaleString();
         isValid = true;
         return true;
@@ -696,23 +696,6 @@ public class Ticket {
             return;
         }
 
-        // if card is invalid from the validity date, write a new one.
-        if((firstUseDateInMinutes > 0 && currentTime > validityExpiryTime)){
-            Date currentDate = new Date();
-            int firstUseDateToWrite = (int) (currentDate.getTime() / 1000 / 60);
-
-            //CRITICAL
-            boolean writeUseDate = utils.writePages(intToByteArray(firstUseDateToWrite), 0, 9, 1);
-            //CRITICAL
-            if (!writeUseDate) {
-                invalidateCard("ERROR: problems while writing firstTimeDate as int in addAdditional(). currentDate: " + (currentDate.getTime() / 1000 / 60), "Please Retry!");
-                eraseTag(); // TODO should tag be erased?
-                return;
-            }
-            Utilities.log("INFO: Created and wrote new first use Date for expired card in addAdditional", false);
-            firstUseDateInMinutes = firstUseDateToWrite; // So that the HMAC doesn't fail.
-        }
-
         // read card MAC
         byte[] rawMac = new byte[4];
         boolean checkMac = utils.readPages(14, 1, rawMac, 0);
@@ -735,9 +718,10 @@ public class Ticket {
         int initialCounterValue = byteArrayToInt(rawInitialCounterValue);
         Utilities.log("INFO: InitialCounterValue read successfully in addAdditional() InitialCounterValue: " + initialCounterValue, false);
 
-        String cardMACNew = getCardMAC(15);
+        String cardMACFromUse = getCardMAC(15);
+        if (cardMACFromUse == null) return;
 
-        boolean compareMacFromUse = checkMAC(diversifiedMacKey, seasonExpiryDateInMinutes, firstUseDateInMinutes, maxUsages, initialCounterValue, cardMACNew, ticketValidityDays);
+        boolean compareMacFromUse = checkMAC(diversifiedMacKey, seasonExpiryDateInMinutes, firstUseDateInMinutes, maxUsages, initialCounterValue, cardMACFromUse, ticketValidityDays);
         boolean compareMacFromIssue = checkMAC(diversifiedMacKey, seasonExpiryDateInMinutes, firstUseDateInMinutes, maxUsages, initialCounterValue, cardMac, ticketValidityDays);
         // If both evaluate to false then the mac has been tampered. If at least one is true it should be ok.
         if (!compareMacFromIssue && !compareMacFromUse) {
@@ -745,6 +729,44 @@ public class Ticket {
             Utilities.log("ERROR: problems while comparing HMAC in addAdditional().", true);
             eraseTag();
             return;
+        }
+
+        // if card is invalid from the validity date, write a new one and remove any unused rides.
+        int currentCounter = 0;
+        if ((firstUseDateInMinutes > 0 && currentTime > validityExpiryTime)) {
+
+            // read current counter
+            byte[] rawCurrentValueCounter = new byte[4];
+            boolean checkCurrentValueCounter = utils.readPages(41, 1, rawCurrentValueCounter, 0);
+            byte[] twoByteCounter = new byte[4];
+            twoByteCounter[2] = rawCurrentValueCounter[1];
+            twoByteCounter[3] = rawCurrentValueCounter[0];
+            if (!checkCurrentValueCounter) {
+                infoToShow = "There was a problem reading the counter of the card!";
+                Utilities.log("ERROR: problems while reading current counter in addAdditional().", true);
+                return;
+            }
+            currentCounter = byteArrayToInt(twoByteCounter);
+
+            // Putting initial counter value to accommodate only the additional rides and not any unused rides
+            boolean putInitialCounterValue = utils.writePages(intToByteArray(currentCounter), 0, 21, 1);
+            if (!putInitialCounterValue) {
+                infoToShow = "Unable to write initial counter value!";
+                Utilities.log("ERROR: problems while writing initial counter value in addAdditional().", true);
+                return;
+            }
+            initialCounterValue = currentCounter;
+            Utilities.log("INFO: initial counter value was put successfully in addAdditional()! Counter: " + currentCounter, false);
+            maxUsages = 0; //reset the number of rides in the card if the ticket expired
+            Date currentDate = new Date();
+            int firstUseDateToWrite = (int) (currentDate.getTime() / 1000 / 60);
+            boolean writeUseDate = utils.writePages(intToByteArray(firstUseDateToWrite), 0, 9, 1);
+            if (!writeUseDate) { // if it fails, then this condition is satisfied and we rewrite, if it doesn't fail then we continue on to write the new data
+                invalidateCard("ERROR: problems while writing firstTimeDate as int in addAdditional().", "Please Retry!");
+                return;
+            }
+            Utilities.log("INFO: Created and wrote new first use Date for expired card in addAdditional", false);
+            firstUseDateInMinutes = firstUseDateToWrite; // So that the HMAC doesn't fail.
         }
 
         // write new number of uses
@@ -758,17 +780,20 @@ public class Ticket {
 
 
         // Generate and write new MAC to only one page (4bytes).
-        byte[] cardMACFromCard = generateMAC(diversifiedMacKey, seasonExpiryDateInMinutes, firstUseDateInMinutes, maxUsages + additionalRides, initialCounterValue, ticketValidityDays);
-        boolean checkMACWritten = utils.writePages(cardMACFromCard, 0, 15, 1);
-        boolean checkMACWritten1 = utils.writePages(cardMACFromCard, 0, 14, 1);
-        if (!checkMACWritten || !checkMACWritten1) {
-            infoToShow = "Unable to update HMAC in use()!";
-            Utilities.log("ERROR: Was not able to update HMAC in addAdditional().", true);
+        byte[] cardMACToCard = generateMAC(diversifiedMacKey, seasonExpiryDateInMinutes, firstUseDateInMinutes, maxUsages + additionalRides, initialCounterValue, ticketValidityDays);
+        boolean checkMACWritten;
+        if (firstUseDateInMinutes == 0 || initialCounterValue == currentCounter)
+            checkMACWritten = utils.writePages(cardMACToCard, 0, 14, 1);
+        else
+            checkMACWritten = utils.writePages(cardMACToCard, 0, 15, 1);
+        if (!checkMACWritten) {
             eraseTag();
+            infoToShow = "Unable to update HMAC in addAdditional()! Please reissue the ticket";
+            Utilities.log("ERROR: Was not able to update HMAC in addAdditional().", true);
             return;
         }
         infoToShow = "Added 5 rides successfully!";
-        Utilities.log("INFO: Wrote new mac to card. New MAC: " + convertByteArrayToHex(cardMACFromCard), false);
+        Utilities.log("INFO: Wrote new mac to card. New MAC: " + convertByteArrayToHex(cardMACToCard), false);
 
     }
 
@@ -843,12 +868,10 @@ public class Ticket {
     }
 
     private String getCardMAC(int startPage) {
-        // Get mac from pages 14-18.
-        // Get only first 4 bytes.
         byte[] rawMac = new byte[4];
         boolean checkMac = utils.readPages(startPage, 1, rawMac, 0);
         if (!checkMac) {
-            invalidateCard("ERROR: problems while reading HMAC in use().", "Unable to get HMAC in use()!");
+            invalidateCard("ERROR: problems while reading HMAC.", "Please try again!");
             return null;
         }
         String cardMac = convertByteArrayToHex(rawMac);
