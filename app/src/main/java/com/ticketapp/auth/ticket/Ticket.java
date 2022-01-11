@@ -279,9 +279,9 @@ public class Ticket {
                 return false;
             }
             Utilities.log("INFO: Auth Key set successfully in method issue()!", false);
-
-            // Setting Auth1 to 0h to restrict read and write
-            boolean auth1Written = utils.writePages(intToByteArray(0), 0, 43, 1);
+            byte[] page43 = {(byte) 0x01, (byte) 0x01, (byte) 0x01, (byte) 0x01};
+            // Setting Auth1 to Fh to restrict write
+            boolean auth1Written = utils.writePages(page43, 0, 43, 1);
             if (!auth1Written) {
                 infoToShow = "Failed to configure Auth1!";
                 Utilities.log("ERROR: problems while configuring Auth1 in issue().", true);
@@ -291,7 +291,7 @@ public class Ticket {
 
 
             // Setting Auth0 to 2bh to protect Auth1 and Key (initially), 7h to protect everything starting page 7 to key
-            page42 = new BigInteger("07000000", 16).toByteArray();
+            page42 = new BigInteger("04000000", 16).toByteArray();
             auth0Written = utils.writePages(page42, 0, 42, 1);
             if (!auth0Written) {
                 infoToShow = "Failed to configure Auth0!";
@@ -586,10 +586,10 @@ public class Ticket {
         //Date validityExpiryDate = new Date(validityExpiryTime * 1000L * 60L);
         long currentHours = new Date().getTime() / 1000 / 60;
         long remainingHours = (long) validityExpiryTime - currentHours;
-        String remainingTime = String.format(Locale.getDefault(), "%d hours and %02d minutes", remainingHours / 60, remainingHours % 60);
+        String remainingTime = String.format(Locale.getDefault(), "%d h %02d min", remainingHours / 60, remainingHours % 60);
 
 
-        infoToShow = "Use of card was successful! remaining uses: " + remainingUses + " \nTicket validity expires in :  " + remainingTime; //\nSeason ends on: " + new Date(seasonExpiry * 1000L * 60L).toLocaleString();
+        infoToShow = "Success! \nRemaining rides: " + remainingUses + "\nExpires in: " + remainingTime; //\nSeason ends on: " + new Date(seasonExpiry * 1000L * 60L).toLocaleString();
         isValid = true;
         return true;
     }
@@ -732,22 +732,22 @@ public class Ticket {
             return;
         }
 
-        // if card is invalid from the validity date, write a new one and remove any unused rides.
-        int currentCounter = 0;
-        if ((firstUseDateInMinutes > 0 && currentTime > validityExpiryTime)) {
 
-            // read current counter
-            byte[] rawCurrentValueCounter = new byte[4];
-            boolean checkCurrentValueCounter = utils.readPages(41, 1, rawCurrentValueCounter, 0);
-            byte[] twoByteCounter = new byte[4];
-            twoByteCounter[2] = rawCurrentValueCounter[1];
-            twoByteCounter[3] = rawCurrentValueCounter[0];
-            if (!checkCurrentValueCounter) {
-                infoToShow = "There was a problem reading the counter of the card!";
-                Utilities.log("ERROR: problems while reading current counter in addAdditional().", true);
-                return;
-            }
-            currentCounter = byteArrayToInt(twoByteCounter);
+        // read current counter
+        byte[] rawCurrentValueCounter = new byte[4];
+        boolean checkCurrentValueCounter = utils.readPages(41, 1, rawCurrentValueCounter, 0);
+        byte[] twoByteCounter = new byte[4];
+        twoByteCounter[2] = rawCurrentValueCounter[1];
+        twoByteCounter[3] = rawCurrentValueCounter[0];
+        if (!checkCurrentValueCounter) {
+            infoToShow = "There was a problem reading the counter of the card!";
+            Utilities.log("ERROR: problems while reading current counter in addAdditional().", true);
+            return;
+        }
+        int currentCounter = byteArrayToInt(twoByteCounter);
+
+        // if card is invalid from the validity date, write a new one and remove any unused rides.
+        if ((firstUseDateInMinutes > 0 && currentTime > validityExpiryTime) || !(currentCounter - initialCounterValue < maxUsages)) {
 
             // Putting initial counter value to accommodate only the additional rides and not any unused rides
             boolean putInitialCounterValue = utils.writePages(intToByteArray(currentCounter), 0, 21, 1);
@@ -793,7 +793,8 @@ public class Ticket {
             Utilities.log("ERROR: Was not able to update HMAC in addAdditional().", true);
             return;
         }
-        infoToShow = "Added 5 rides successfully!";
+        int remainingRides = (maxUsages + additionalRides) - (currentCounter - initialCounterValue);
+        infoToShow = "Added 5 rides successfully!\nAvailable rides: " + remainingRides;
         Utilities.log("INFO: Wrote new mac to card. New MAC: " + convertByteArrayToHex(cardMACToCard), false);
 
     }
